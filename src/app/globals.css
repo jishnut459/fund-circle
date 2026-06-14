@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-teal: #0F6E56;
+  --color-teal-dark: #0A5A47;
+  --color-teal-light: #1D9E75;
+  --color-teal-50: #E6F4EF;
+  --color-teal-100: #CCEAE0;
+
+  --color-coral: #E8734A;
+  --color-coral-dark: #D15E35;
+
+  --color-cream: #FAF9F6;
+  --color-charcoal: #2C2C2A;
+
+  --color-success: #0F6E56;
+  --color-warning: #B45309;
+  --color-info: #1E40AF;
+
+  --radius-card: 1rem;
+  --radius-button: 0.75rem;
+
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+}
+
+:root {
+  --bg-page: #FAF9F6;
+  --bg-surface: #FFFFFF;
+  --text-primary: #2C2C2A;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --border-color: #E8E6E1;
+  --border-light: #F0EEE9;
+}
+
+.dark {
+  --bg-page: #1A1A18;
+  --bg-surface: #252523;
+  --text-primary: #E8E6E1;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --border-color: #3D3D3A;
+  --border-light: #2E2E2B;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* Tabular numbers for currency */
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Skeleton animation */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--border-light) 25%,
+    var(--bg-page) 37%,
+    var(--border-light) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Timeline dot styles */
+.timeline-dot {
+  box-shadow: 0 0 0 3px var(--bg-page);
+}
+
+/* Custom scrollbar */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+  }
+}
+
+/* Toast overrides for warm palette */
+[data-sonner-toaster] {
+  --normal-bg: var(--bg-surface);
+  --normal-border: var(--border-color);
+  --normal-text: var(--text-primary);
+}
