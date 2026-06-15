@@ -7,6 +7,7 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
+import { computeEligibility, computeLendingPoolAvailable } from "@/lib/loans"
 import type { ActionResult, LoanSettings } from "@/lib/types"
 
 const PLAN_LIMITS: Record<string, number> = { free: 20, pro: 100, premium: 9999 }
@@ -283,4 +284,89 @@ export async function recordPayment(contributionId: string, amount: number, note
 export async function closeCycleFormAction(formData: FormData): Promise<void> {
   const cycleId = formData.get("cycleId") as string; const userId = formData.get("userId") as string; const circleId = formData.get("circleId") as string
   await closeCycle(cycleId, userId, circleId)
+}
+
+export type LoanEligibility = {
+  totalContributionsPaid: number
+  lendingPoolAvailable: number
+  maxByContribution: number
+  maxByPool: number
+  eligibleAmount: number
+}
+
+export async function getLoanEligibility(circleId: string, userId: string): Promise<ActionResult<LoanEligibility>> {
+  const supabase = createAdminSupabaseClient()
+
+  const { data: circle, error: circleError } = await supabase
+    .from("fund_circles")
+    .select("loan_allocation_pct, max_loan_pct_of_contribution, max_loan_pct_of_lending_pool")
+    .eq("id", circleId)
+    .single()
+  if (circleError || !circle) return { success: false, error: "Fund circle not found" }
+
+  const { data: cycles } = await supabase
+    .from("contribution_cycles")
+    .select("id")
+    .eq("fund_circle_id", circleId)
+
+  const cycleIds = (cycles ?? []).map((c) => c.id)
+
+  let totalContributionsCollected = 0
+  let totalContributionsPaid = 0
+  if (cycleIds.length > 0) {
+    const { data: contributions } = await supabase
+      .from("contributions")
+      .select("user_id, paid_amount")
+      .in("contribution_cycle_id", cycleIds)
+
+    for (const c of contributions ?? []) {
+      const paid = Number(c.paid_amount)
+      totalContributionsCollected += paid
+      if (c.user_id === userId) totalContributionsPaid += paid
+    }
+  }
+
+  const { data: activeLoans } = await supabase
+    .from("loans")
+    .select("id, user_id")
+    .eq("fund_circle_id", circleId)
+    .eq("status", "active")
+
+  const loanIds = (activeLoans ?? []).map((l) => l.id)
+  const loanUserById = new Map((activeLoans ?? []).map((l) => [l.id, l.user_id]))
+
+  let totalPrincipalOutstanding = 0
+  let outstandingPrincipal = 0
+  if (loanIds.length > 0) {
+    const { data: installments } = await supabase
+      .from("loan_installments")
+      .select("loan_id, principal_component, paid_amount, total_due")
+      .in("loan_id", loanIds)
+
+    for (const installment of installments ?? []) {
+      if (Number(installment.paid_amount) >= Number(installment.total_due)) continue
+      const principal = Number(installment.principal_component)
+      totalPrincipalOutstanding += principal
+      if (loanUserById.get(installment.loan_id) === userId) outstandingPrincipal += principal
+    }
+  }
+
+  const lendingPoolAvailable = computeLendingPoolAvailable({
+    totalContributionsCollected,
+    loanAllocationPct: Number(circle.loan_allocation_pct),
+    totalPrincipalOutstanding,
+  })
+
+  const { maxByContribution, maxByPool, eligibleAmount } = computeEligibility({
+    totalContributionsPaid,
+    maxLoanPctOfContribution: Number(circle.max_loan_pct_of_contribution),
+    lendingPoolAvailable,
+    maxLoanPctOfLendingPool: Number(circle.max_loan_pct_of_lending_pool),
+    outstandingPrincipal,
+  })
+
+  return {
+    success: true,
+    data: { totalContributionsPaid, lendingPoolAvailable, maxByContribution, maxByPool, eligibleAmount },
+  }
 }
