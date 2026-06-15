@@ -75,6 +75,12 @@ function formatAuditAction(entry: AuditEntry): string {
       const v = entry.newValue as { currentValue: number } | null
       return `${entry.userName} updated an asset's current value to ${formatCurrency(v?.currentValue ?? 0)}`
     }
+    case "circle_settlement_calculated": {
+      const v = entry.newValue as { totalValue: number; memberCount: number } | null
+      return `${entry.userName} calculated settlement: ${formatCurrency(v?.totalValue ?? 0)} across ${v?.memberCount ?? 0} member(s)`
+    }
+    case "circle_settlement_finalized":
+      return `${entry.userName} finalized the circle settlement — circle is now closed`
     default:
       return `${entry.userName} ${action}`
   }

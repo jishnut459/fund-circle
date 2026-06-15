@@ -8,6 +8,7 @@ import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
 import { computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, roundCurrency } from "@/lib/loans"
+import { computeMemberShare } from "@/lib/settlement"
 import { toISODate } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
 import type { ActionResult, AssetType, LoanSettings } from "@/lib/types"
@@ -890,5 +891,147 @@ export async function updateLoanSettings(circleId: string, settings: LoanSetting
   })
 
   revalidatePath(`/circles/${circleId}/settings`)
+  return { success: true, data: undefined }
+}
+
+export async function calculateCircleSettlement(
+  circleId: string,
+  actorUserId: string,
+  totalValueOverride?: number
+): Promise<ActionResult> {
+  if (!circleId || !actorUserId) return { success: false, error: "Missing required fields" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) return { success: false, error: "You don't have permission to calculate settlement for this circle." }
+
+  const { data: blockingLoans } = await supabase
+    .from("loans")
+    .select("id")
+    .eq("fund_circle_id", circleId)
+    .in("status", ["pending_request", "active"])
+
+  if (blockingLoans && blockingLoans.length > 0) {
+    return { success: false, error: `${blockingLoans.length} loan(s) are still pending or active. All loans must be closed, rejected, or cancelled before settling.` }
+  }
+
+  const { data: existing } = await supabase.from("circle_settlements").select("id, status").eq("fund_circle_id", circleId).maybeSingle()
+  if (existing?.status === "finalized") return { success: false, error: "Settlement is already finalized and cannot be recalculated." }
+
+  const { data: cycleRows } = await supabase.from("contribution_cycles").select("id").eq("fund_circle_id", circleId)
+  const cycleIds = (cycleRows ?? []).map((c) => c.id)
+
+  const memberTotals = new Map<string, number>()
+  let totalContributionsBase = 0
+
+  if (cycleIds.length > 0) {
+    const { data: contribs } = await supabase.from("contributions").select("user_id, paid_amount").in("contribution_cycle_id", cycleIds)
+    for (const c of (contribs ?? [])) {
+      const prev = memberTotals.get(c.user_id) ?? 0
+      const amt = Number(c.paid_amount)
+      memberTotals.set(c.user_id, prev + amt)
+      totalContributionsBase += amt
+    }
+  }
+
+  const { data: closedLoans } = await supabase.from("loans").select("id").eq("fund_circle_id", circleId).eq("status", "closed")
+  const closedLoanIds = (closedLoans ?? []).map((l) => l.id)
+
+  let totalLoanInterest = 0
+  if (closedLoanIds.length > 0) {
+    const { data: installments } = await supabase.from("loan_installments").select("interest_component").in("loan_id", closedLoanIds)
+    totalLoanInterest = (installments ?? []).reduce((s, li) => s + Number(li.interest_component), 0)
+  }
+
+  const { data: assetRows } = await supabase.from("cycle_asset_records").select("amount, current_value").eq("fund_circle_id", circleId)
+  const totalAssetGains = (assetRows ?? []).reduce((s, r) => {
+    const gain = r.current_value !== null ? Math.max(0, Number(r.current_value) - Number(r.amount)) : 0
+    return s + gain
+  }, 0)
+
+  const suggestedTotal = roundCurrency(totalContributionsBase + totalLoanInterest + totalAssetGains)
+  const totalValue = totalValueOverride !== undefined ? roundCurrency(totalValueOverride) : suggestedTotal
+  if (totalValue < 0) return { success: false, error: "Total value cannot be negative" }
+
+  let settlementId: string
+
+  if (existing) {
+    const { error } = await supabase
+      .from("circle_settlements")
+      .update({ total_value: totalValue, total_contributions_base: totalContributionsBase, calculated_by: actorUserId, calculated_at: new Date().toISOString() })
+      .eq("id", existing.id)
+    if (error) return { success: false, error: "Failed to update settlement" }
+    settlementId = existing.id
+    await supabase.from("circle_settlement_payouts").delete().eq("circle_settlement_id", settlementId)
+  } else {
+    const { data: newSettlement, error } = await supabase
+      .from("circle_settlements")
+      .insert({ fund_circle_id: circleId, total_value: totalValue, total_contributions_base: totalContributionsBase, calculated_by: actorUserId })
+      .select("id")
+      .single()
+    if (error || !newSettlement) return { success: false, error: "Failed to create settlement" }
+    settlementId = newSettlement.id
+  }
+
+  const payoutRows = Array.from(memberTotals.entries())
+    .filter(([, total]) => total > 0)
+    .map(([userId, contribTotal]) => ({
+      circle_settlement_id: settlementId,
+      user_id: userId,
+      contribution_total: contribTotal,
+      share_amount: computeMemberShare(contribTotal, totalContributionsBase, totalValue),
+    }))
+
+  if (payoutRows.length > 0) {
+    const { error } = await supabase.from("circle_settlement_payouts").insert(payoutRows)
+    if (error) return { success: false, error: "Failed to insert payout rows" }
+  }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "circle_settlement_calculated",
+    entityType: "circle_settlement",
+    entityId: settlementId,
+    newValue: { totalValue, totalContributionsBase, memberCount: payoutRows.length },
+  })
+
+  revalidatePath(`/circles/${circleId}/settlement`)
+  return { success: true, data: undefined }
+}
+
+export async function finalizeCircleSettlement(circleId: string, actorUserId: string): Promise<ActionResult> {
+  if (!circleId || !actorUserId) return { success: false, error: "Missing required fields" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) return { success: false, error: "You don't have permission to finalize settlement for this circle." }
+
+  const { data: settlement } = await supabase.from("circle_settlements").select("id, status").eq("fund_circle_id", circleId).maybeSingle()
+  if (!settlement) return { success: false, error: "No settlement found. Calculate a settlement first." }
+  if (settlement.status === "finalized") return { success: false, error: "Settlement is already finalized." }
+
+  const { error: settleError } = await supabase
+    .from("circle_settlements")
+    .update({ status: "finalized", finalized_at: new Date().toISOString() })
+    .eq("id", settlement.id)
+  if (settleError) return { success: false, error: "Failed to finalize settlement" }
+
+  const { error: circleError } = await supabase.from("fund_circles").update({ status: "closed" }).eq("id", circleId)
+  if (circleError) return { success: false, error: "Failed to close circle" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "circle_settlement_finalized",
+    entityType: "circle_settlement",
+    entityId: settlement.id,
+    newValue: { status: "finalized" },
+  })
+
+  revalidatePath(`/circles/${circleId}/settlement`)
+  revalidatePath(`/circles/${circleId}/dashboard`)
   return { success: true, data: undefined }
 }
