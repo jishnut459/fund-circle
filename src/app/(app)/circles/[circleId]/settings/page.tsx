@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Settings, Shield } from "lucide-react"
+import { CalendarRange, Settings, Shield } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
-import { formatCurrency } from "@/lib/format"
+import { formatCurrency, formatDate } from "@/lib/format"
 import { describeCycleDueDay } from "@/lib/cycles"
+import ExtendCircleDialog from "@/components/loans/ExtendCircleDialog"
 
 export default async function CircleSettingsPage({
   params,
@@ -107,6 +108,33 @@ export default async function CircleSettingsPage({
           <p className="text-xs text-[var(--text-muted)]">
             Editing is not available in this version.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <CalendarRange className="h-4 w-4 text-teal" />
+            Circle Term
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input defaultValue={circle.start_date ? formatDate(circle.start_date) : "Not set"} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label>End Date</Label>
+              <Input defaultValue={circle.end_date ? formatDate(circle.end_date) : "Not set"} disabled />
+            </div>
+          </div>
+          <ExtendCircleDialog
+            circleId={circleId}
+            actorUserId={user.id}
+            currentEndDate={circle.end_date}
+            startDate={circle.start_date}
+          />
         </CardContent>
       </Card>
 

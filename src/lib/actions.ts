@@ -678,3 +678,53 @@ export async function recordLoanPayment(loanInstallmentId: string, amount: numbe
   revalidatePath(`/circles/${circleId}/loans/${loan.id}`)
   return { success: true, data: undefined }
 }
+
+export async function extendCircleEndDate(circleId: string, newEndDate: string, actorUserId: string): Promise<ActionResult> {
+  if (!newEndDate) return { success: false, error: "Enter a valid end date" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", actorUserId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) {
+    return { success: false, error: "You don't have permission to change this circle's dates." }
+  }
+
+  const { data: circle, error: circleError } = await supabase
+    .from("fund_circles")
+    .select("start_date, end_date")
+    .eq("id", circleId)
+    .single()
+  if (circleError || !circle) return { success: false, error: "Fund circle not found" }
+
+  if (circle.start_date && newEndDate < circle.start_date) {
+    return { success: false, error: "End date cannot be before the circle's start date" }
+  }
+  if (circle.end_date && newEndDate <= circle.end_date) {
+    return { success: false, error: "New end date must be later than the current end date" }
+  }
+
+  const { error: updateError } = await supabase
+    .from("fund_circles")
+    .update({ end_date: newEndDate })
+    .eq("id", circleId)
+  if (updateError) return { success: false, error: "Failed to update the circle's end date" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "circle_extended",
+    entityType: "fund_circle",
+    entityId: circleId,
+    previousValue: { endDate: circle.end_date },
+    newValue: { endDate: newEndDate },
+  })
+
+  revalidatePath(`/circles/${circleId}/settings`)
+  return { success: true, data: undefined }
+}
