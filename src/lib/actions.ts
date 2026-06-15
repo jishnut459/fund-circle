@@ -7,7 +7,7 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
-import { computeEligibility, computeLendingPoolAvailable, finalInstallmentDate } from "@/lib/loans"
+import { computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule } from "@/lib/loans"
 import { toISODate } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
 import type { ActionResult, LoanSettings } from "@/lib/types"
@@ -453,6 +453,126 @@ export async function cancelLoanRequest(loanId: string, userId: string, circleId
     entityId: loanId,
     previousValue: { status: "pending_request" },
     newValue: { status: "cancelled" },
+  })
+
+  revalidatePath(`/circles/${circleId}/loans`)
+  return { success: true, data: undefined }
+}
+
+export async function reviewLoanRequest(
+  loanId: string,
+  circleId: string,
+  actorUserId: string,
+  decision: "approve" | "reject",
+  approvedAmount?: number,
+  approvedTermMonths?: number
+): Promise<ActionResult> {
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", actorUserId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) {
+    return { success: false, error: "You don't have permission to review loan requests for this circle." }
+  }
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans")
+    .select("id, fund_circle_id, user_id, status, requested_amount, requested_term_months")
+    .eq("id", loanId)
+    .single()
+  if (loanError || !loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan request not found" }
+  if (loan.status !== "pending_request") return { success: false, error: "Only pending requests can be reviewed" }
+  if (loan.user_id === actorUserId) return { success: false, error: "You cannot review your own loan request" }
+
+  if (decision === "reject") {
+    const { error: updateError } = await supabase
+      .from("loans")
+      .update({ status: "rejected", reviewed_by: actorUserId, reviewed_at: new Date().toISOString() })
+      .eq("id", loanId)
+    if (updateError) return { success: false, error: "Failed to reject loan request" }
+
+    await writeAuditLog({
+      circleId,
+      userId: actorUserId,
+      action: "loan_rejected",
+      entityType: "loan",
+      entityId: loanId,
+      previousValue: { status: "pending_request" },
+      newValue: { status: "rejected" },
+    })
+
+    revalidatePath(`/circles/${circleId}/loans`)
+    return { success: true, data: undefined }
+  }
+
+  const amount = approvedAmount ?? Number(loan.requested_amount)
+  const termMonths = approvedTermMonths ?? loan.requested_term_months
+  if (!amount || amount <= 0) return { success: false, error: "Enter an approved amount greater than zero" }
+  if (!termMonths || termMonths <= 0) return { success: false, error: "Enter an approved term of at least 1 month" }
+
+  const { data: circle, error: circleError } = await supabase
+    .from("fund_circles")
+    .select("loan_interest_rate_pct, end_date")
+    .eq("id", circleId)
+    .single()
+  if (circleError || !circle) return { success: false, error: "Fund circle not found" }
+
+  const eligibility = await getLoanEligibility(circleId, loan.user_id)
+  if (!eligibility.success) return { success: false, error: eligibility.error }
+  if (amount > eligibility.data.eligibleAmount) {
+    return { success: false, error: `This amount exceeds the member's loan eligibility of ${formatCurrency(eligibility.data.eligibleAmount)}` }
+  }
+
+  const issueDate = new Date()
+  if (circle.end_date) {
+    const lastInstallment = toISODate(finalInstallmentDate(issueDate, termMonths))
+    if (lastInstallment > circle.end_date) {
+      return { success: false, error: "This term would push the final repayment past the circle's end date" }
+    }
+  }
+
+  const interestRatePct = Number(circle.loan_interest_rate_pct)
+  const schedule = generateAmortizationSchedule(amount, interestRatePct, termMonths, issueDate)
+
+  const { error: updateError } = await supabase
+    .from("loans")
+    .update({
+      status: "active",
+      approved_amount: amount,
+      approved_term_months: termMonths,
+      interest_rate_pct: interestRatePct,
+      reviewed_by: actorUserId,
+      reviewed_at: issueDate.toISOString(),
+      issued_at: issueDate.toISOString(),
+    })
+    .eq("id", loanId)
+  if (updateError) return { success: false, error: "Failed to approve loan request" }
+
+  const { error: installmentsError } = await supabase.from("loan_installments").insert(
+    schedule.map((row) => ({
+      loan_id: loanId,
+      installment_number: row.installmentNumber,
+      due_date: row.dueDate,
+      principal_component: row.principalComponent,
+      interest_component: row.interestComponent,
+      total_due: row.totalDue,
+    }))
+  )
+  if (installmentsError) return { success: false, error: "Failed to generate repayment schedule" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_approved",
+    entityType: "loan",
+    entityId: loanId,
+    previousValue: { status: "pending_request" },
+    newValue: { status: "active", approvedAmount: amount, approvedTermMonths: termMonths, interestRatePct },
   })
 
   revalidatePath(`/circles/${circleId}/loans`)

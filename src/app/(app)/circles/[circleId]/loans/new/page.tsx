@@ -2,16 +2,9 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { getLoanEligibility } from "@/lib/actions"
+import { monthsUntil } from "@/lib/loans"
 import EligibilityWidget from "@/components/loans/EligibilityWidget"
 import LoanRequestForm from "@/components/loans/LoanRequestForm"
-
-function monthsUntil(endDateIso: string): number {
-  const end = new Date(endDateIso)
-  const now = new Date()
-  let months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth())
-  if (end.getDate() < now.getDate()) months -= 1
-  return Math.max(0, months)
-}
 
 export default async function LoanRequestPage({ params }: { params: Promise<{ circleId: string }> }) {
   const { circleId } = await params

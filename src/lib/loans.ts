@@ -71,6 +71,15 @@ export function finalInstallmentDate(issueDate: Date, termMonths: number): Date 
   return new Date(issueDate.getFullYear(), issueDate.getMonth() + termMonths, issueDate.getDate())
 }
 
+/** Whole months remaining between today and an end date — used to cap loan terms so the final installment doesn't fall after it. */
+export function monthsUntil(endDateIso: string): number {
+  const end = new Date(endDateIso)
+  const now = new Date()
+  let months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth())
+  if (end.getDate() < now.getDate()) months -= 1
+  return Math.max(0, months)
+}
+
 /** Funds available to lend: the lending-pool share of all contributions collected, minus principal already on loan. */
 export function computeLendingPoolAvailable(params: {
   totalContributionsCollected: number
