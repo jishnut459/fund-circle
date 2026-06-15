@@ -7,7 +7,7 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
-import { computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule } from "@/lib/loans"
+import { computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, roundCurrency } from "@/lib/loans"
 import { toISODate } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
 import type { ActionResult, LoanSettings } from "@/lib/types"
@@ -576,5 +576,105 @@ export async function reviewLoanRequest(
   })
 
   revalidatePath(`/circles/${circleId}/loans`)
+  return { success: true, data: undefined }
+}
+
+export async function recordLoanPayment(loanInstallmentId: string, amount: number, notes: string, actorUserId: string, circleId: string): Promise<ActionResult> {
+  if (!loanInstallmentId || !amount || amount <= 0) return { success: false, error: "Enter a payment amount greater than zero" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", actorUserId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) {
+    return { success: false, error: "You don't have permission to record loan payments for this circle." }
+  }
+
+  const { data: installment, error: installmentError } = await supabase
+    .from("loan_installments")
+    .select("id, loan_id, due_date, total_due, paid_amount, late_fee_applied")
+    .eq("id", loanInstallmentId)
+    .single()
+  if (installmentError || !installment) return { success: false, error: "Installment not found" }
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans")
+    .select("id, fund_circle_id, status")
+    .eq("id", installment.loan_id)
+    .single()
+  if (loanError || !loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
+  if (loan.status !== "active") return { success: false, error: "Payments can only be recorded for active loans" }
+
+  const { data: circle } = await supabase
+    .from("fund_circles")
+    .select("loan_late_fee, loan_grace_days")
+    .eq("id", circleId)
+    .single()
+
+  const previousPaid = Number(installment.paid_amount)
+  const previousTotalDue = Number(installment.total_due)
+  let totalDue = previousTotalDue
+  let lateFeeApplied = Number(installment.late_fee_applied)
+
+  if (lateFeeApplied === 0 && circle && Number(circle.loan_late_fee) > 0) {
+    const graceDeadline = new Date(installment.due_date)
+    graceDeadline.setDate(graceDeadline.getDate() + Number(circle.loan_grace_days))
+    if (toISODate(new Date()) > toISODate(graceDeadline)) {
+      lateFeeApplied = Number(circle.loan_late_fee)
+      totalDue = roundCurrency(totalDue + lateFeeApplied)
+    }
+  }
+
+  const newPaid = roundCurrency(previousPaid + amount)
+
+  const { error: updateInstallmentError } = await supabase
+    .from("loan_installments")
+    .update({ paid_amount: newPaid, total_due: totalDue, late_fee_applied: lateFeeApplied })
+    .eq("id", loanInstallmentId)
+  if (updateInstallmentError) return { success: false, error: "Failed to update installment" }
+
+  const { error: paymentError } = await supabase
+    .from("loan_payments")
+    .insert({ loan_installment_id: loanInstallmentId, amount, recorded_by: actorUserId, notes: notes || null })
+  if (paymentError) return { success: false, error: "Failed to record payment" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_payment_recorded",
+    entityType: "loan_installment",
+    entityId: loanInstallmentId,
+    previousValue: { paidAmount: previousPaid, totalDue: previousTotalDue, lateFeeApplied: Number(installment.late_fee_applied) },
+    newValue: { paidAmount: newPaid, totalDue, lateFeeApplied, paymentAmount: amount },
+  })
+
+  const { data: allInstallments } = await supabase
+    .from("loan_installments")
+    .select("paid_amount, total_due")
+    .eq("loan_id", loan.id)
+
+  const allPaid = (allInstallments ?? []).every((i) => Number(i.paid_amount) >= Number(i.total_due))
+  if (allPaid) {
+    const { error: closeError } = await supabase.from("loans").update({ status: "closed" }).eq("id", loan.id)
+    if (!closeError) {
+      await writeAuditLog({
+        circleId,
+        userId: actorUserId,
+        action: "loan_closed",
+        entityType: "loan",
+        entityId: loan.id,
+        previousValue: { status: "active" },
+        newValue: { status: "closed" },
+      })
+    }
+  }
+
+  revalidatePath(`/circles/${circleId}/loans`)
+  revalidatePath(`/circles/${circleId}/loans/${loan.id}`)
   return { success: true, data: undefined }
 }
