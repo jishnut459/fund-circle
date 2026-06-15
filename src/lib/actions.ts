@@ -1035,3 +1035,38 @@ export async function finalizeCircleSettlement(circleId: string, actorUserId: st
   revalidatePath(`/circles/${circleId}/dashboard`)
   return { success: true, data: undefined }
 }
+
+export async function recordSettlementDisbursement(payoutId: string, circleId: string, actorUserId: string, notes?: string): Promise<ActionResult> {
+  if (!payoutId || !circleId || !actorUserId) return { success: false, error: "Missing required fields" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) return { success: false, error: "You don't have permission to record disbursements for this circle." }
+
+  const { data: payout } = await supabase.from("circle_settlement_payouts").select("id, disbursed, circle_settlement_id").eq("id", payoutId).single()
+  if (!payout) return { success: false, error: "Payout not found" }
+  if (payout.disbursed) return { success: false, error: "This payout has already been disbursed" }
+
+  const { data: settlement } = await supabase.from("circle_settlements").select("fund_circle_id, status").eq("id", payout.circle_settlement_id).single()
+  if (!settlement || settlement.fund_circle_id !== circleId) return { success: false, error: "Payout not found" }
+  if (settlement.status !== "finalized") return { success: false, error: "Settlement must be finalized before marking payouts as disbursed" }
+
+  const { error } = await supabase
+    .from("circle_settlement_payouts")
+    .update({ disbursed: true, disbursed_at: new Date().toISOString(), disbursed_by: actorUserId, notes: notes || null })
+    .eq("id", payoutId)
+  if (error) return { success: false, error: "Failed to record disbursement" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "settlement_payout_disbursed",
+    entityType: "circle_settlement_payout",
+    entityId: payoutId,
+    newValue: { disbursed: true, notes: notes || null },
+  })
+
+  revalidatePath(`/circles/${circleId}/settlement`)
+  return { success: true, data: undefined }
+}
