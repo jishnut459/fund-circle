@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Users,
   Banknote,
+  HandCoins,
   Menu,
   ScrollText,
   Settings,
@@ -35,6 +36,7 @@ function AppSidebar({ currentUser }: { currentUser: AppUser }) {
         { href: `/circles/${circleId}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
         { href: `/circles/${circleId}/members`, label: "Members", icon: Users },
         { href: `/circles/${circleId}/cycles`, label: "Payments", icon: Banknote },
+        { href: `/circles/${circleId}/loans`, label: "Loans", icon: HandCoins },
         ...(isAdminOrOwner(currentUser.circleRole ?? "")
           ? [
               { href: `/circles/${circleId}/audit-logs`, label: "Audit Logs", icon: ScrollText },
@@ -125,6 +127,7 @@ function BottomNav({ currentUser }: { currentUser: AppUser }) {
     { href: `/circles/${circleId}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
     { href: `/circles/${circleId}/members`, label: "Members", icon: Users },
     { href: `/circles/${circleId}/cycles`, label: "Payments", icon: Banknote },
+    { href: `/circles/${circleId}/loans`, label: "Loans", icon: HandCoins },
   ]
 
   const moreTabs = isAdminOrOwner(currentUser.circleRole ?? "")
