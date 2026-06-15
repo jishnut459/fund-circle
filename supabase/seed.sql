@@ -18,6 +18,8 @@
 
 drop view if exists contributions_with_status cascade;
 drop view if exists loan_installments_with_status cascade;
+drop table if exists circle_settlement_payouts cascade;
+drop table if exists circle_settlements cascade;
 drop table if exists cycle_asset_records cascade;
 drop table if exists loan_payments cascade;
 drop table if exists loan_installments cascade;
@@ -198,6 +200,34 @@ create table cycle_asset_records (
   updated_at timestamptz default now()
 );
 
+create table circle_settlements (
+  id uuid primary key default gen_random_uuid(),
+  fund_circle_id uuid not null unique references fund_circles(id) on delete cascade,
+  total_value numeric(12,2) not null check (total_value >= 0),
+  total_contributions_base numeric(12,2) not null,
+  status text not null default 'draft' check (status in ('draft','finalized')),
+  calculated_by uuid not null references auth.users(id),
+  calculated_at timestamptz default now(),
+  finalized_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table circle_settlement_payouts (
+  id uuid primary key default gen_random_uuid(),
+  circle_settlement_id uuid not null references circle_settlements(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  contribution_total numeric(12,2) not null,
+  share_amount numeric(12,2) not null,
+  disbursed boolean not null default false,
+  disbursed_at timestamptz,
+  disbursed_by uuid references auth.users(id),
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (circle_settlement_id, user_id)
+);
+
 create table audit_logs (
   id uuid primary key default gen_random_uuid(),
   circle_id uuid references fund_circles(id) on delete set null,
@@ -244,6 +274,8 @@ alter table loans enable row level security;
 alter table loan_installments enable row level security;
 alter table loan_payments enable row level security;
 alter table cycle_asset_records enable row level security;
+alter table circle_settlements enable row level security;
+alter table circle_settlement_payouts enable row level security;
 alter table audit_logs enable row level security;
 alter table org_invites enable row level security;
 alter table otp_rate_limit enable row level security;
@@ -453,6 +485,58 @@ create policy "car_update_admin_or_owner" on cycle_asset_records for update
   using (exists (
     select 1 from fund_circle_members fcm
     where fcm.fund_circle_id = cycle_asset_records.fund_circle_id
+      and fcm.user_id = auth.uid()
+      and fcm.role in ('owner','admin')
+  ));
+
+-- --- circle_settlements ---
+create policy "cs_select_member" on circle_settlements for select
+  using (exists (
+    select 1 from fund_circle_members fcm
+    where fcm.fund_circle_id = circle_settlements.fund_circle_id
+      and fcm.user_id = auth.uid()
+      and fcm.active = true
+  ));
+create policy "cs_insert_admin_or_owner" on circle_settlements for insert
+  with check (exists (
+    select 1 from fund_circle_members fcm
+    where fcm.fund_circle_id = circle_settlements.fund_circle_id
+      and fcm.user_id = auth.uid()
+      and fcm.role in ('owner','admin')
+  ));
+create policy "cs_update_admin_or_owner" on circle_settlements for update
+  using (exists (
+    select 1 from fund_circle_members fcm
+    where fcm.fund_circle_id = circle_settlements.fund_circle_id
+      and fcm.user_id = auth.uid()
+      and fcm.role in ('owner','admin')
+  ));
+
+-- --- circle_settlement_payouts ---
+create policy "csp_select_member" on circle_settlement_payouts for select
+  using (
+    user_id = auth.uid()
+    or exists (
+      select 1 from circle_settlements cs
+      join fund_circle_members fcm on fcm.fund_circle_id = cs.fund_circle_id
+      where cs.id = circle_settlement_payouts.circle_settlement_id
+        and fcm.user_id = auth.uid()
+        and fcm.role in ('owner','admin')
+    )
+  );
+create policy "csp_insert_admin_or_owner" on circle_settlement_payouts for insert
+  with check (exists (
+    select 1 from circle_settlements cs
+    join fund_circle_members fcm on fcm.fund_circle_id = cs.fund_circle_id
+    where cs.id = circle_settlement_payouts.circle_settlement_id
+      and fcm.user_id = auth.uid()
+      and fcm.role in ('owner','admin')
+  ));
+create policy "csp_update_admin_or_owner" on circle_settlement_payouts for update
+  using (exists (
+    select 1 from circle_settlements cs
+    join fund_circle_members fcm on fcm.fund_circle_id = cs.fund_circle_id
+    where cs.id = circle_settlement_payouts.circle_settlement_id
       and fcm.user_id = auth.uid()
       and fcm.role in ('owner','admin')
   ));
