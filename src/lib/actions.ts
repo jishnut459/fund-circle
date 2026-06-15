@@ -7,7 +7,7 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
-import type { ActionResult } from "@/lib/types"
+import type { ActionResult, LoanSettings } from "@/lib/types"
 
 const PLAN_LIMITS: Record<string, number> = { free: 20, pro: 100, premium: 9999 }
 
@@ -15,14 +15,53 @@ function getMemberLimit(plan: string): number {
   return PLAN_LIMITS[plan] ?? PLAN_LIMITS.free
 }
 
-export async function createFundCircle(name: string, description: string, amount: number, frequency: string, userId: string, plan: string = "free", cycleDueDay: number | null = null): Promise<ActionResult<{ circleId: string }>> {
+export type CreateFundCircleOptions = {
+  loanSettings?: LoanSettings
+  startDate?: string | null
+  endDate?: string | null
+}
+
+export async function createFundCircle(name: string, description: string, amount: number, frequency: string, userId: string, plan: string = "free", cycleDueDay: number | null = null, options?: CreateFundCircleOptions): Promise<ActionResult<{ circleId: string }>> {
   if (!name || !amount || !userId) return { success: false, error: "Missing required fields" }
+
+  const loanSettings = options?.loanSettings
+  if (loanSettings && Math.round((loanSettings.assetAllocationPct + loanSettings.loanAllocationPct) * 100) !== 10000) {
+    return { success: false, error: "Asset and loan allocation percentages must add up to 100" }
+  }
+
+  const startDate = options?.startDate || null
+  const endDate = options?.endDate || null
+  if (startDate && endDate && endDate < startDate) {
+    return { success: false, error: "End date must be on or after start date" }
+  }
+
   const supabase = createAdminSupabaseClient()
   const maxMembers = getMemberLimit(plan)
-  const { data: circle, error: circleError } = await supabase.from("fund_circles").insert({ name, description, contribution_amount: amount, contribution_frequency: frequency || "monthly", cycle_due_day: cycleDueDay, subscription_plan: plan, max_members: maxMembers }).select("id").single()
+  const { data: circle, error: circleError } = await supabase.from("fund_circles").insert({
+    name,
+    description,
+    contribution_amount: amount,
+    contribution_frequency: frequency || "monthly",
+    cycle_due_day: cycleDueDay,
+    subscription_plan: plan,
+    max_members: maxMembers,
+    start_date: startDate,
+    end_date: endDate,
+    ...(loanSettings && {
+      asset_allocation_pct: loanSettings.assetAllocationPct,
+      loan_allocation_pct: loanSettings.loanAllocationPct,
+      loan_interest_rate_pct: loanSettings.loanInterestRatePct,
+      max_loan_pct_of_contribution: loanSettings.maxLoanPctOfContribution,
+      max_loan_pct_of_lending_pool: loanSettings.maxLoanPctOfLendingPool,
+      contribution_late_fee: loanSettings.contributionLateFee,
+      contribution_grace_days: loanSettings.contributionGraceDays,
+      loan_late_fee: loanSettings.loanLateFee,
+      loan_grace_days: loanSettings.loanGraceDays,
+    }),
+  }).select("id").single()
   if (circleError || !circle) return { success: false, error: "Failed to create fund circle" }
   await supabase.from("fund_circle_members").insert({ fund_circle_id: circle.id, user_id: userId, role: "owner", active: true })
-  await writeAuditLog({ circleId: circle.id, userId, action: "fund_circle_created", entityType: "fund_circle", entityId: circle.id, newValue: { name, amount, frequency, plan, cycleDueDay } })
+  await writeAuditLog({ circleId: circle.id, userId, action: "fund_circle_created", entityType: "fund_circle", entityId: circle.id, newValue: { name, amount, frequency, plan, cycleDueDay, startDate, endDate, loanSettings } })
   revalidatePath("/circles")
   return { success: true, data: { circleId: circle.id } }
 }
