@@ -62,8 +62,30 @@ create table fund_circles (
     check (subscription_plan in ('free','pro','premium')),
   max_members int not null default 20,
   status text not null default 'active' check (status in ('active','paused','closed')),
+  asset_allocation_pct numeric(5,2) not null default 0
+    check (asset_allocation_pct >= 0 and asset_allocation_pct <= 100),
+  loan_allocation_pct numeric(5,2) not null default 100
+    check (loan_allocation_pct >= 0 and loan_allocation_pct <= 100),
+  loan_interest_rate_pct numeric(5,2) not null default 0
+    check (loan_interest_rate_pct >= 0),
+  max_loan_pct_of_contribution numeric(5,2) not null default 90
+    check (max_loan_pct_of_contribution >= 0),
+  max_loan_pct_of_lending_pool numeric(5,2) not null default 10
+    check (max_loan_pct_of_lending_pool >= 0),
+  contribution_late_fee numeric(12,2) not null default 0
+    check (contribution_late_fee >= 0),
+  contribution_grace_days int not null default 0
+    check (contribution_grace_days >= 0),
+  loan_late_fee numeric(12,2) not null default 0
+    check (loan_late_fee >= 0),
+  loan_grace_days int not null default 0
+    check (loan_grace_days >= 0),
+  start_date date,
+  end_date date,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  constraint fc_allocation_sums_100 check (asset_allocation_pct + loan_allocation_pct = 100),
+  constraint fc_dates_valid check (start_date is null or end_date is null or end_date >= start_date)
 );
 
 create table fund_circle_members (
