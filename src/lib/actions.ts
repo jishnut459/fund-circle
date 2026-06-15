@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server"
 import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
+import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
 import type { ActionResult } from "@/lib/types"
 
@@ -104,6 +105,8 @@ export async function addCircleMember(params: { circleId: string; email: string;
 
     const { error: memberError } = await supabase.from("fund_circle_members").upsert({ fund_circle_id: circleId, user_id: existingProfile.id, role, active: true }, { onConflict: "fund_circle_id, user_id" })
     if (memberError) return { success: false, error: "Failed to add member to circle" }
+
+    await addMemberToOpenCycles(circleId, existingProfile.id)
 
     await supabase.from("org_invites").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("fund_circle_id", circleId).eq("email", email).eq("status", "pending")
 

@@ -1,5 +1,6 @@
 import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { writeAuditLog } from "@/lib/audit"
+import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 
 interface GoogleUserMetadata {
   full_name?: string
@@ -44,6 +45,8 @@ export async function resolveUserOnSignIn(
         },
         { onConflict: "fund_circle_id, user_id", ignoreDuplicates: true }
       )
+
+      await addMemberToOpenCycles(invite.fund_circle_id, userId)
 
       await supabase
         .from("org_invites")
