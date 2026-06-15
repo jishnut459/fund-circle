@@ -18,6 +18,7 @@
 
 drop view if exists contributions_with_status cascade;
 drop view if exists loan_installments_with_status cascade;
+drop table if exists cycle_asset_records cascade;
 drop table if exists loan_payments cascade;
 drop table if exists loan_installments cascade;
 drop table if exists loans cascade;
@@ -182,6 +183,21 @@ create table loan_payments (
   created_at timestamptz default now()
 );
 
+create table cycle_asset_records (
+  id uuid primary key default gen_random_uuid(),
+  fund_circle_id uuid not null references fund_circles(id) on delete cascade,
+  contribution_cycle_id uuid references contribution_cycles(id) on delete set null,
+  asset_type text not null check (asset_type in ('recurring_deposit','fixed_deposit','cash_in_hand','mutual_fund','other')),
+  institution text,
+  amount numeric(12,2) not null check (amount >= 0),
+  current_value numeric(12,2),
+  notes text,
+  recorded_by uuid not null references auth.users(id),
+  recorded_at date not null default current_date,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table audit_logs (
   id uuid primary key default gen_random_uuid(),
   circle_id uuid references fund_circles(id) on delete set null,
@@ -227,6 +243,7 @@ alter table contribution_payments enable row level security;
 alter table loans enable row level security;
 alter table loan_installments enable row level security;
 alter table loan_payments enable row level security;
+alter table cycle_asset_records enable row level security;
 alter table audit_logs enable row level security;
 alter table org_invites enable row level security;
 alter table otp_rate_limit enable row level security;
@@ -413,6 +430,29 @@ create policy "loan_payments_insert_admin_or_owner" on loan_payments for insert
     join loans l on l.id = li.loan_id
     join fund_circle_members fcm on fcm.fund_circle_id = l.fund_circle_id
     where li.id = loan_payments.loan_installment_id
+      and fcm.user_id = auth.uid()
+      and fcm.role in ('owner','admin')
+  ));
+
+-- --- cycle_asset_records ---
+create policy "car_select_member" on cycle_asset_records for select
+  using (exists (
+    select 1 from fund_circle_members fcm
+    where fcm.fund_circle_id = cycle_asset_records.fund_circle_id
+      and fcm.user_id = auth.uid()
+      and fcm.active = true
+  ));
+create policy "car_insert_admin_or_owner" on cycle_asset_records for insert
+  with check (exists (
+    select 1 from fund_circle_members fcm
+    where fcm.fund_circle_id = cycle_asset_records.fund_circle_id
+      and fcm.user_id = auth.uid()
+      and fcm.role in ('owner','admin')
+  ));
+create policy "car_update_admin_or_owner" on cycle_asset_records for update
+  using (exists (
+    select 1 from fund_circle_members fcm
+    where fcm.fund_circle_id = cycle_asset_records.fund_circle_id
       and fcm.user_id = auth.uid()
       and fcm.role in ('owner','admin')
   ));
