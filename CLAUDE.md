@@ -7,7 +7,7 @@ This file gives Claude Code persistent context for working on Fund Circle. Read 
 
 ## 1. Product context
 
-Fund Circle is a mobile-first multi-tenant SaaS app for managing community contribution groups (savings funds, wedding funds, welfare associations) in India. Organizations onboard members and track recurring contributions with full transparency and audit trails. Users are mostly non-technical — community admins and members checking payment status on their phones. The core value is **trust through transparency**: every rupee collected should feel accounted for and visible.
+Fund Circle is a mobile-first SaaS app for managing community contribution groups (savings funds, wedding funds, welfare associations) in India. A **fund circle** is the top-level tenant unit — each has its own subscription plan, member cap, and billing; there is no separate organization layer above it. Members and admins track recurring contributions with full transparency and audit trails. Users are mostly non-technical — community admins and members checking payment status on their phones. The core value is **trust through transparency**: every rupee collected should feel accounted for and visible.
 
 ---
 
@@ -24,42 +24,46 @@ Fund Circle is a mobile-first multi-tenant SaaS app for managing community contr
 ## 3. Architecture & project structure
 
 ```
-app/
-  (auth)/                  -- login, OTP verification (real auth — wired separately)
-  (app)/
-    layout.tsx             -- auth guard + current-user/org context
-    orgs/
-      page.tsx             -- org selector
-      [orgId]/
-        layout.tsx          -- active org context, role-based nav
-        dashboard/
-        fund-circles/
-          [circleId]/
-            cycles/[cycleId]/
-            members/
-        members/
-        audit-logs/
-        settings/
-  api/                     -- route handlers (auth callbacks, webhooks only)
+src/
+  app/
+    (auth)/
+      login/                -- Google OAuth sign-in (LoginCard)
+    auth/callback/          -- OAuth callback route -- exchanges code, calls resolveUserOnSignIn
+    (app)/
+      layout.tsx             -- auth guard (redirects to /login if no session)
+      (circles-home)/
+        circles/              -- circle list -- selector + "New Circle" dialog
+      circles/
+        [circleId]/
+          layout.tsx           -- membership + role check, circle header, role-based nav
+          dashboard/
+          cycles/              -- cycle list + [cycleId] detail (contributions table)
+          members/
+          audit-logs/
+          settings/
+    api/
+      auth/logout/           -- route handlers: auth callbacks only
 
 components/
   ui/                      -- shadcn primitives (do not hand-edit -- regenerate via shadcn CLI)
-  layout/                  -- AppShell, sidebar, bottom tab bar, org switcher
-  dashboard/
-  fund-circles/
-  contributions/
-  members/
+  layout/                  -- AppShell (sidebar + bottom tab bar), UserDropdown
+  auth/                    -- LoginCard
+  dashboard/               -- OwnerDashboard, MemberDashboard
+  fund-circles/            -- FundCircleCard, FundCircleForm
+  contributions/           -- ContributionTable, ContributionStatusBadge, RecordPaymentDialog
+  members/                 -- MemberTable, AddMemberDialog
   audit/
-  dev/                     -- DevUserSwitcher and other dev-only tools
 
 lib/
-  supabase-server.ts       -- server client (cookie-bound)
-  supabase-client.ts       -- browser client
-  get-current-user.ts       -- resolves session → user + org role
-  permissions.ts            -- role-check helpers (isOwner, isAdminOrOwner, canEditContributions)
+  supabase-server.ts       -- cookie-bound server client + admin (service-role) client
+  supabase-client.ts       -- browser client, signInWithGoogle
+  get-current-user.ts       -- resolves session → user profile + per-circle role
+  permissions.ts            -- role-check helpers (isOwner, isAdminOrOwner, canEditContributions, canEditCircle)
   audit.ts                  -- writeAuditLog helper
-  format.ts                 -- currency/date formatting helpers
-  dev-auth.ts                -- seeded dev users (dev mode only)
+  onboarding.ts             -- resolveUserOnSignIn -- profile upsert + pending invite acceptance
+  format.ts                 -- currency/date/percentage formatting helpers
+  types.ts                  -- ActionResult<T>
+  actions.ts                -- Server Actions (createFundCircle, recordPayment, addCircleMember, etc.)
 
 supabase/
   migrations/
@@ -69,10 +73,10 @@ supabase/
 ### Architectural rules
 
 - **Server-first data fetching**: fetch data in server components / server actions wherever possible. Client components only for interactivity (forms, dialogs, optimistic updates).
-- **Server actions for mutations**: all writes (create fund circle, record payment, add member, etc.) go through server actions in a colocated `actions.ts` file, not client-side `fetch` to API routes. Reserve `app/api/` for webhooks and auth callbacks only.
+- **Server actions for mutations**: all writes (create fund circle, record payment, add member, etc.) go through server actions in `lib/actions.ts`, not client-side `fetch` to API routes. Reserve `app/api/` for webhooks and auth callbacks only.
 - **RLS is the source of truth for access control**: every table has RLS policies. `lib/permissions.ts` helpers gate UI rendering (hide buttons), but server actions must never assume the UI gate was respected -- they re-check role server-side before mutating.
-- **Org context via route segment**: `[orgId]` in the URL is the single source of truth for "which org am I in." Don't store active org in client state/localStorage -- read it from the route and re-verify membership server-side on every request.
-- **Audit logging is mandatory for financial mutations**: any insert/update to `contributions`, `contribution_payments`, `fund_circles`, `organization_members`, or `organizations` must call `writeAuditLog()` in the same server action, with `previous_value`/`new_value` populated.
+- **Circle context via route segment**: `[circleId]` in the URL is the single source of truth for "which circle am I in." Don't store the active circle in client state/localStorage -- `circles/[circleId]/layout.tsx` re-verifies membership and role server-side on every request.
+- **Audit logging is mandatory for financial mutations**: any insert/update to `contributions`, `contribution_payments`, `contribution_cycles`, `fund_circles`, or `fund_circle_members` must call `writeAuditLog()` in the same server action, with `previous_value`/`new_value` populated.
 - **Computed status, not stored status**: contribution status (unpaid/partial/paid/overpaid) is derived from `expected_amount` vs `paid_amount` -- via the `contributions_with_status` view or equivalent computed field. Never add a stored `status` column that can drift from the underlying amounts.
 
 ---
@@ -105,7 +109,7 @@ supabase/
 
 ### Comments
 - Comment *why*, not *what*. Avoid restating the code in prose.
-- Flag any temporary/dev-only code with `// TODO(dev-bypass):` so it's greppable before going to production (e.g. the auth bypass, dev user switcher).
+- Flag any temporary/dev-only code with `// TODO(dev-bypass):` so it's greppable before going to production.
 
 ### Formatting
 - Prettier defaults, 2-space indent, single quotes. Follow whatever `.prettierrc` is committed -- don't reformat unrelated files in the same change.
@@ -142,8 +146,8 @@ Move away from default shadcn slate/zinc.
 
 ## 6. Layout & navigation
 
-- **Mobile**: bottom tab bar for primary nav (Dashboard, Fund Circles, Members, More) -- not a hamburger menu. 4-5 thumb-reachable items max.
-- **Desktop/tablet**: collapsible left sidebar, same nav items, org name + switcher at the top.
+- **Mobile**: bottom tab bar for primary nav (Dashboard, Members, Audit Logs, Settings) -- not a hamburger menu. 4-5 thumb-reachable items max.
+- **Desktop/tablet**: collapsible left sidebar with the same nav items, circle name + "All Circles" link at the top to return to the circle list/switcher.
 - Sticky page headers: title + primary action button (e.g. "+ New Fund Circle") always visible without scrolling.
 - Consistent page structure: header → key metrics (if applicable) → main content list/table → empty states.
 
@@ -184,8 +188,7 @@ Move away from default shadcn slate/zinc.
 - **Fund Circle cards**: name, status badge, contribution amount + frequency prominently shown, plus a progress indicator for the current cycle's collection (e.g. "₹8,000 / ₹10,000 collected -- 80%").
 - **Contribution table**: sticky header row, alternating row backgrounds, status badge column always visible (never scrolls off on mobile).
 - **Audit log**: timeline-style layout (vertical line + dots), not a plain table. Each entry: actor, plain-language action ("Vikram recorded ₹1,000 payment for Ravi"), timestamp.
-- **Org switcher**: dropdown with org name + role badge, accessible from the top of the sidebar/header on every page.
-- **Dev user switcher**: keep functional but visually de-emphasized -- small, corner-pinned, obviously dev-only styling (e.g. dashed border, "DEV" label).
+- **Circle list (`/circles`)**: acts as the circle switcher -- card grid of circles the user belongs to, each showing name + role badge, plus "New Circle" entry point.
 
 ---
 

@@ -1,10 +1,20 @@
 -- ============================================================
 -- Fund Circle — Consolidated Seed
 -- ============================================================
+-- WARNING: This wipes the entire database, including every
+-- Supabase Auth user (auth.users and its cascaded identities,
+-- sessions, refresh tokens, etc.) and all application data.
+-- Intended for local/dev resets only — never run against
+-- production.
+-- ============================================================
 
 -- ========================================
 -- Phase 1: Drop everything (clean slate)
 -- ========================================
+-- Tables are dropped before auth.users is wiped because
+-- audit_logs.user_id and contribution_payments.recorded_by
+-- reference auth.users(id) without ON DELETE CASCADE/SET NULL,
+-- which would otherwise block the delete in Phase 2.
 
 drop view if exists contributions_with_status cascade;
 drop table if exists contribution_payments cascade;
@@ -20,7 +30,15 @@ drop table if exists profiles cascade;
 drop table if exists otp_rate_limit cascade;
 
 -- ========================================
--- Phase 2: Create all tables
+-- Phase 2: Wipe all auth users
+-- (cascades to auth.identities, auth.sessions,
+--  auth.refresh_tokens, auth.mfa_factors, etc.)
+-- ========================================
+
+delete from auth.users;
+
+-- ========================================
+-- Phase 3: Create all tables
 -- ========================================
 
 create table profiles (
@@ -38,7 +56,8 @@ create table fund_circles (
   description text,
   contribution_amount numeric(12,2) not null,
   contribution_frequency text not null default 'monthly'
-    check (contribution_frequency in ('monthly','every_15_days','every_30_days','every_45_days')),
+    check (contribution_frequency in ('daily','weekly','monthly','quarterly')),
+  cycle_due_day int check (cycle_due_day is null or cycle_due_day between 1 and 31),
   subscription_plan text not null default 'free'
     check (subscription_plan in ('free','pro','premium')),
   max_members int not null default 20,
@@ -63,8 +82,10 @@ create table contribution_cycles (
   label text not null,
   cycle_start date not null,
   cycle_end date not null,
+  due_date date not null,
   status text not null default 'open' check (status in ('open','closed')),
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique (fund_circle_id, cycle_start)
 );
 
 create table contributions (
@@ -108,9 +129,13 @@ create table org_invites (
   role text not null check (role in ('owner','admin','member')),
   fund_circle_id uuid references fund_circles(id) on delete cascade,
   status text not null default 'pending' check (status in ('pending','accepted','revoked')),
+  invited_name text,
+  invited_by uuid references auth.users(id) on delete set null,
   created_at timestamptz default now(),
   accepted_at timestamptz
 );
+
+create unique index org_invites_pending_unique on org_invites (fund_circle_id, lower(email)) where status = 'pending';
 
 create table otp_rate_limit (
   phone text primary key,
@@ -119,7 +144,7 @@ create table otp_rate_limit (
 );
 
 -- ========================================
--- Phase 3: Enable RLS on all tables
+-- Phase 4: Enable RLS on all tables
 -- ========================================
 
 alter table profiles enable row level security;
@@ -133,7 +158,7 @@ alter table org_invites enable row level security;
 alter table otp_rate_limit enable row level security;
 
 -- ========================================
--- Phase 4: Create all RLS policies
+-- Phase 5: Create all RLS policies
 -- ========================================
 
 -- --- profiles ---
@@ -283,7 +308,7 @@ create policy "invite_update_admin_or_owner" on org_invites for update
   ));
 
 -- ========================================
--- Phase 5: Views
+-- Phase 6: Views
 -- ========================================
 
 create or replace view contributions_with_status as

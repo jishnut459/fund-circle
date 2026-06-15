@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CircleDollarSign } from "lucide-react"
+import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle, type LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
-import { formatCurrency } from "@/lib/format"
+import { formatCurrency, formatISODate } from "@/lib/format"
 
 interface DashboardData {
   circleMeta: {
@@ -15,6 +15,7 @@ interface DashboardData {
   currentCycle: {
     label: string
     status: string
+    dueDate: string | null
     totalExpected: number
     totalPaid: number
     paidCount: number
@@ -37,8 +38,33 @@ interface DashboardData {
   circleId: string
 }
 
+function StatChip({
+  icon: Icon,
+  label,
+  value,
+  colorClass,
+}: {
+  icon: LucideIcon
+  label: string
+  value: number
+  colorClass: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 rounded-xl bg-[var(--bg-page)] border border-[var(--border-light)] py-3">
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${colorClass}`}>
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <p className="text-lg font-bold font-tabular text-[var(--text-primary)]">{value}</p>
+      <p className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+    </div>
+  )
+}
+
 export default function OwnerDashboard({ data }: { data: DashboardData }) {
   const { currentCycle, totalCollected, recentCycles, circleId, circleMeta } = data
+  const progress = currentCycle && currentCycle.totalExpected > 0
+    ? Math.round((currentCycle.totalPaid / currentCycle.totalExpected) * 100)
+    : 0
 
   return (
     <div>
@@ -48,75 +74,110 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
 
       {currentCycle ? (
         <Card className="mb-8">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-sm text-[var(--text-primary)]">
-                  {currentCycle.label}
-                </h3>
-                <Badge variant={currentCycle.status === "open" ? "info" : "default"} className="text-[10px]">
-                  {currentCycle.status}
-                </Badge>
+          <CardContent className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center shrink-0">
+                  <Wallet className="h-5 w-5 text-teal" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate">
+                      {currentCycle.label}
+                    </h3>
+                    <Badge variant={currentCycle.status === "open" ? "info" : "default"} className="text-[10px]">
+                      {currentCycle.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Current cycle{currentCycle.dueDate && ` · Pay by ${formatISODate(currentCycle.dueDate)}`}
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold font-tabular text-[var(--text-primary)]">
-                  {formatCurrency(currentCycle.totalPaid)}
-                </p>
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  of {formatCurrency(currentCycle.totalExpected)}
-                </p>
-              </div>
+              <Badge variant={progress >= 100 ? "success" : "default"} className="text-xs shrink-0 font-tabular">
+                {progress}%
+              </Badge>
             </div>
 
-            <div className="w-full h-2.5 bg-[var(--border-light)] rounded-full overflow-hidden mb-3">
+            <div className="mb-4">
+              <p className="text-3xl font-bold font-tabular text-[var(--text-primary)]">
+                {formatCurrency(currentCycle.totalPaid)}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                of {formatCurrency(currentCycle.totalExpected)} collected
+              </p>
+            </div>
+
+            <div className="w-full h-2.5 bg-[var(--border-light)] rounded-full overflow-hidden mb-5">
               <div
                 className="h-full bg-teal rounded-full transition-all"
-                style={{
-                  width: `${currentCycle.totalExpected > 0 ? Math.round((currentCycle.totalPaid / currentCycle.totalExpected) * 100) : 0}%`,
-                }}
+                style={{ width: `${Math.min(progress, 100)}%` }}
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-              <span className="text-emerald-600 font-semibold">
-                {currentCycle.paidCount} paid
-              </span>
-              <span className="text-amber-600 font-semibold">
-                {currentCycle.partialCount} partial
-              </span>
-              <span className="text-[var(--text-muted)]">
-                {currentCycle.unpaidCount} unpaid
-              </span>
-              <span className="text-[var(--border-color)]">·</span>
-              <span className="text-[var(--text-muted)]">
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              <StatChip
+                icon={CheckCircle2}
+                label="Paid"
+                value={currentCycle.paidCount}
+                colorClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+              />
+              <StatChip
+                icon={Clock}
+                label="Partial"
+                value={currentCycle.partialCount}
+                colorClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              />
+              <StatChip
+                icon={Circle}
+                label="Unpaid"
+                value={currentCycle.unpaidCount}
+                colorClass="bg-[var(--border-light)] text-[var(--text-muted)]"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-4 border-t border-[var(--border-light)] text-xs text-[var(--text-muted)]">
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
                 {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
               </span>
-              <span className="text-[var(--border-color)]">·</span>
-              <span className="text-[var(--text-muted)]">
+              <span className="flex items-center gap-1.5">
+                <Repeat className="h-3.5 w-3.5" />
                 {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
               </span>
-              <span className="text-[var(--border-color)]">·</span>
-              <span className="text-[var(--text-muted)]">
-                Total: {formatCurrency(totalCollected)}
+              <span className="flex items-center gap-1.5">
+                <PiggyBank className="h-3.5 w-3.5" />
+                {formatCurrency(totalCollected)} collected all-time
               </span>
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card className="mb-8">
-          <CardContent className="p-5">
-            <p className="text-sm text-[var(--text-muted)]">No active cycle.</p>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2 text-xs">
-              <span className="text-[var(--text-muted)]">
+          <CardContent className="p-5 sm:p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center shrink-0">
+                <Wallet className="h-5 w-5 text-teal" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">No active cycle</p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Start a cycle to begin tracking contributions.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-4 border-t border-[var(--border-light)] text-xs text-[var(--text-muted)]">
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
                 {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
               </span>
-              <span className="text-[var(--border-color)]">·</span>
-              <span className="text-[var(--text-muted)]">
+              <span className="flex items-center gap-1.5">
+                <Repeat className="h-3.5 w-3.5" />
                 {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
               </span>
-              <span className="text-[var(--border-color)]">·</span>
-              <span className="text-[var(--text-muted)]">
-                Total: {formatCurrency(totalCollected)}
+              <span className="flex items-center gap-1.5">
+                <PiggyBank className="h-3.5 w-3.5" />
+                {formatCurrency(totalCollected)} collected all-time
               </span>
             </div>
           </CardContent>
@@ -130,7 +191,7 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
         <CardContent>
           {recentCycles.length === 0 ? (
             <EmptyState
-              icon={CircleDollarSign}
+              icon={Banknote}
               title="No cycles yet"
               description="Start a cycle to begin tracking contributions."
               action={{ label: "Go to Payments", href: `/circles/${circleId}/cycles` }}
@@ -138,7 +199,8 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
           ) : (
             <div className="space-y-2">
               {recentCycles.map((cycle) => {
-                const progress = cycle.totalExpected > 0 ? Math.round((cycle.totalPaid / cycle.totalExpected) * 100) : 0
+                const cycleProgress = cycle.totalExpected > 0 ? Math.round((cycle.totalPaid / cycle.totalExpected) * 100) : 0
+                const isComplete = cycleProgress >= 100
 
                 return (
                   <Link
@@ -146,11 +208,25 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
                     href={`/circles/${cycle.circleId}/cycles/${cycle.id}`}
                     className="block"
                   >
-                    <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-light)] hover:bg-[var(--border-light)] transition-colors">
-                      <div className="space-y-1 min-w-0 flex-1 mr-4">
-                        <p className="font-medium text-sm text-[var(--text-primary)] truncate">
-                          {cycle.label}
-                        </p>
+                    <div className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border-light)] hover:border-[var(--border-color)] hover:bg-[var(--border-light)] transition-colors">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                          isComplete
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                            : "bg-[var(--border-light)] text-[var(--text-muted)]"
+                        }`}
+                      >
+                        {isComplete ? <CheckCircle2 className="h-4.5 w-4.5" /> : <Clock className="h-4.5 w-4.5" />}
+                      </div>
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-sm text-[var(--text-primary)] truncate">
+                            {cycle.label}
+                          </p>
+                          <span className="text-xs font-semibold font-tabular text-[var(--text-muted)] shrink-0">
+                            {cycleProgress}%
+                          </span>
+                        </div>
                         <div className="flex gap-2 text-[11px]">
                           <span className="text-emerald-600 font-medium">{cycle.paidCount} paid</span>
                           <span className="text-amber-600 font-medium">{cycle.partialCount} partial</span>
@@ -159,7 +235,7 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
                         <div className="w-full h-1.5 bg-[var(--border-light)] rounded-full overflow-hidden">
                           <div
                             className="h-full bg-teal rounded-full transition-all"
-                            style={{ width: `${progress}%` }}
+                            style={{ width: `${Math.min(cycleProgress, 100)}%` }}
                           />
                         </div>
                       </div>

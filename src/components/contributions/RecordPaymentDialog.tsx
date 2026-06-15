@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Check } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { recordPayment } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
 
@@ -21,6 +23,7 @@ export default function RecordPaymentDialog({
   contributionId,
   circleId,
   userId,
+  memberName,
   expectedAmount,
   currentPaid,
 }: {
@@ -29,6 +32,7 @@ export default function RecordPaymentDialog({
   circleId: string
   orgId?: string
   userId: string
+  memberName?: string
   expectedAmount: number
   currentPaid: number
 }) {
@@ -40,9 +44,15 @@ export default function RecordPaymentDialog({
   const [error, setError] = useState("")
 
   const remaining = expectedAmount - currentPaid
+  const isSettled = remaining <= 0
 
-  const quickPay = () => {
-    setAmount(String(remaining))
+  const handleOpenChange = (value: boolean) => {
+    setOpen(value)
+    if (value) {
+      setAmount(remaining > 0 ? String(remaining) : "")
+      setNotes("")
+      setError("")
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,41 +63,66 @@ export default function RecordPaymentDialog({
 
     const result = await recordPayment(contributionId, Number(amount), notes, userId, circleId)
 
+    setLoading(false)
+
     if (!result.success) {
       setError(result.error)
-      setLoading(false)
       return
     }
 
+    toast.success(
+      `${formatCurrency(Number(amount))} recorded${memberName ? ` for ${memberName}` : ""}`
+    )
     setOpen(false)
-    setAmount("")
-    setNotes("")
     router.refresh()
   }
 
   const totalAfterPayment = currentPaid + (Number(amount) || 0)
   const willBePaid = totalAfterPayment >= expectedAmount
   const willBeOverpaid = totalAfterPayment > expectedAmount
+  const isFullPayment = Number(amount) > 0 && totalAfterPayment === expectedAmount
+
+  const submitLabel = loading
+    ? "Recording..."
+    : willBeOverpaid
+      ? "Record Overpayment"
+      : isFullPayment
+        ? "Mark as Paid"
+        : "Record Payment"
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Record payment">
-          <div className="w-6 h-6 rounded-full border-2 border-[var(--border-color)] flex items-center justify-center hover:border-teal hover:bg-teal-50 transition-colors">
-            <Check className="h-3 w-3 text-[var(--text-muted)]" />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          title={isSettled ? "Add another payment" : "Mark as paid"}
+        >
+          <div
+            className={cn(
+              "w-6 h-6 rounded-full flex items-center justify-center transition-colors",
+              isSettled
+                ? "bg-teal text-white"
+                : "border-2 border-[var(--border-color)] text-[var(--text-muted)] hover:border-teal hover:bg-teal-50 hover:text-teal"
+            )}
+          >
+            <Check className="h-3 w-3" />
           </div>
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
+          <DialogTitle>
+            Record Payment{memberName ? ` — ${memberName}` : ""}
+          </DialogTitle>
           <DialogDescription>
             {amount && Number(amount) > 0
               ? willBeOverpaid
                 ? `Amount will exceed expected payment by ${formatCurrency(totalAfterPayment - expectedAmount)}.`
                 : willBePaid
-                  ? "Amount will fully cover expected contribution."
-                  : `${formatCurrency(expectedAmount - totalAfterPayment)} will remain.`
+                  ? "Amount will fully cover the expected contribution."
+                  : `${formatCurrency(expectedAmount - totalAfterPayment)} will remain after this payment.`
               : "Enter the amount received from this member."
             }
           </DialogDescription>
@@ -114,13 +149,13 @@ export default function RecordPaymentDialog({
             </div>
           </div>
 
-          {remaining > 0 && (
+          {remaining > 0 && amount !== String(remaining) && (
             <button
               type="button"
-              onClick={quickPay}
+              onClick={() => setAmount(String(remaining))}
               className="text-xs text-teal hover:text-teal-dark font-medium transition-colors"
             >
-              Quick-fill remaining ({formatCurrency(remaining)})
+              Use remaining amount ({formatCurrency(remaining)})
             </button>
           )}
 
@@ -133,8 +168,10 @@ export default function RecordPaymentDialog({
               min="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onFocus={(e) => e.target.select()}
               placeholder="500"
               disabled={loading}
+              autoFocus
             />
           </div>
           <div className="space-y-2">
@@ -149,7 +186,7 @@ export default function RecordPaymentDialog({
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" disabled={loading || !amount || Number(amount) <= 0} className="w-full">
-            {loading ? "Recording..." : "Record Payment"}
+            {submitLabel}
           </Button>
         </form>
       </DialogContent>

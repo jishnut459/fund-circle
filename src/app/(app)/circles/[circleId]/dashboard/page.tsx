@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
 import OwnerDashboard from "@/components/dashboard/OwnerDashboard"
 import MemberDashboard from "@/components/dashboard/MemberDashboard"
+import { ensureCurrentCycle } from "@/lib/ensure-cycle"
 
 export default async function CircleDashboardPage({
   params,
@@ -25,6 +26,8 @@ export default async function CircleDashboardPage({
     .single()
 
   if (!membership) redirect("/circles")
+
+  await ensureCurrentCycle(circleId, user.id)
 
   const role = membership.role
 
@@ -50,7 +53,7 @@ export default async function CircleDashboardPage({
   if (isAdminOrOwner(role)) {
     const { data: openCycle } = await supabase
       .from("contribution_cycles")
-      .select("id, label, status, contributions(paid_amount, expected_amount)")
+      .select("id, label, status, due_date, contributions(paid_amount, expected_amount)")
       .eq("fund_circle_id", circleId)
       .eq("status", "open")
       .order("created_at", { ascending: false })
@@ -91,7 +94,7 @@ export default async function CircleDashboardPage({
       <OwnerDashboard
         data={{
           circleMeta,
-          currentCycle: cycle ? { label: cycle.label, status: cycle.status, totalExpected: openTotalExpected, totalPaid: openTotalPaid, paidCount, partialCount, unpaidCount } : null,
+          currentCycle: cycle ? { label: cycle.label, status: cycle.status, dueDate: cycle.due_date, totalExpected: openTotalExpected, totalPaid: openTotalPaid, paidCount, partialCount, unpaidCount } : null,
           totalCollected,
           recentCycles,
           circleId,
@@ -102,18 +105,19 @@ export default async function CircleDashboardPage({
 
   const { data: myContributions } = await supabase
     .from("contributions_with_status")
-    .select("id, contribution_cycle_id, expected_amount, paid_amount, status, contribution_cycles!inner(label, fund_circle_id)")
+    .select("id, contribution_cycle_id, expected_amount, paid_amount, status, contribution_cycles!inner(label, due_date, fund_circle_id)")
     .eq("user_id", user.id)
     .eq("contribution_cycles.fund_circle_id", circleId)
     .order("created_at", { foreignTable: "contribution_cycles", ascending: false })
 
   const cycles = (myContributions ?? []).map((c) => {
-    const cycle = c.contribution_cycles as unknown as { label: string; fund_circle_id: string }
+    const cycle = c.contribution_cycles as unknown as { label: string; due_date: string | null; fund_circle_id: string }
     return {
       id: c.id,
       label: cycle.label,
       circleId: cycle.fund_circle_id,
       circleName: "",
+      dueDate: cycle.due_date,
       expectedAmount: Number(c.expected_amount),
       paidAmount: Number(c.paid_amount),
       status: c.status,

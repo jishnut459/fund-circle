@@ -2,14 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,15 +13,22 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { removeCircleMember, changeCircleMemberRole } from "@/lib/actions"
-import { Trash2 } from "lucide-react"
+import { Crown, ShieldCheck, Trash2, User as UserIcon } from "lucide-react"
 
 interface Member {
   userId: string
   name: string
   email: string
+  avatarUrl?: string | null
   role: string
   inCircle: boolean
   active: boolean
+}
+
+const ROLE_META = {
+  owner: { icon: Crown, variant: "success" as const },
+  admin: { icon: ShieldCheck, variant: "warning" as const },
+  member: { icon: UserIcon, variant: "default" as const },
 }
 
 export default function MemberTable({
@@ -72,85 +72,65 @@ export default function MemberTable({
   }
 
   return (
-    <div className="overflow-x-auto -mx-6">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-[var(--border-light)]">
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium">Name</TableHead>
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium hidden sm:table-cell">
-              Email
-            </TableHead>
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium">Role</TableHead>
-            {showRoleManagement && canEdit && (
-              <TableHead className="text-xs text-[var(--text-muted)] font-medium hidden md:table-cell">
-                Change Role
-              </TableHead>
-            )}
+    <div className="space-y-2">
+      {members.map((m) => {
+        const meta = ROLE_META[m.role as keyof typeof ROLE_META] ?? ROLE_META.member
+        const RoleIcon = meta.icon
+
+        return (
+          <div
+            key={m.userId}
+            className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] px-3 py-2.5 shadow-[var(--shadow-card)]"
+          >
+            <div className="flex items-center gap-3">
+              <Avatar className="h-9 w-9 shrink-0">
+                {m.avatarUrl && <AvatarImage src={m.avatarUrl} alt={m.name} />}
+                <AvatarFallback>{m.name.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-sm text-[var(--text-primary)] truncate">{m.name}</p>
+                <p className="text-xs text-[var(--text-muted)] truncate">{m.email}</p>
+              </div>
+              <Badge variant={meta.variant} className="gap-1 shrink-0">
+                <RoleIcon className="h-3 w-3" />
+                {m.role}
+              </Badge>
+            </div>
             {canEdit && (
-              <TableHead className="text-xs text-[var(--text-muted)] font-medium w-10" />
-            )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {members.map((m, i) => (
-            <TableRow
-              key={m.userId}
-              className={`border-[var(--border-light)] hover:bg-[var(--border-light)] ${i % 2 === 0 ? "" : "bg-[var(--border-light)]/30"}`}
-            >
-              <TableCell className="py-3">
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm text-[var(--text-primary)]">{m.name}</span>
-                  <span className="text-xs text-[var(--text-muted)] sm:hidden">{m.email}</span>
-                </div>
-              </TableCell>
-              <TableCell className="hidden sm:table-cell text-sm text-[var(--text-secondary)]">
-                {m.email}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={
-                    m.role === "owner" ? "success" :
-                    m.role === "admin" ? "warning" : "default"
-                  }
-                >
-                  {m.role}
-                </Badge>
-              </TableCell>
-              {showRoleManagement && canEdit && (
-                <TableCell className="hidden md:table-cell">
+              <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--border-light)]">
+                {showRoleManagement ? (
                   <Select
                     value={m.role}
                     onValueChange={(v) => handleChangeRole(m.userId, v)}
                     disabled={loadingUserId === m.userId}
                   >
-                    <SelectTrigger className="w-28 h-8 text-xs">
+                    <SelectTrigger className="w-32 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="member">member</SelectItem>
-                      <SelectItem value="admin">admin</SelectItem>
-                      <SelectItem value="owner">owner</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
                     </SelectContent>
                   </Select>
-                </TableCell>
-              )}
-              {canEdit && (
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-red-600"
-                    onClick={() => handleRemoveMember(m.userId)}
-                    disabled={loadingUserId === m.userId || m.role === "owner"}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                ) : (
+                  <span />
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-red-600"
+                  onClick={() => handleRemoveMember(m.userId)}
+                  disabled={loadingUserId === m.userId || m.role === "owner"}
+                  title="Remove member"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

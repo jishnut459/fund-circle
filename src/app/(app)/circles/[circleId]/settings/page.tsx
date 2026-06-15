@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Settings, Shield } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatCurrency } from "@/lib/format"
+import { describeCycleDueDay } from "@/lib/cycles"
 
 export default async function CircleSettingsPage({
   params,
@@ -90,6 +91,10 @@ export default async function CircleSettingsPage({
               <Label>Frequency</Label>
               <Input defaultValue={circle.contribution_frequency.replace(/_/g, " ")} disabled />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Payment Due</Label>
+            <Input defaultValue={describeCycleDueDay(circle.contribution_frequency, circle.cycle_due_day)} disabled />
           </div>
           <div className="space-y-2">
             <Label>Status</Label>

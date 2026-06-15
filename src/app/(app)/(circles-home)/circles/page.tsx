@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
 import { EmptyState } from "@/components/ui/empty-state"
-import { CircleDollarSign, Users } from "lucide-react"
+import { PiggyBank, Users, Wallet } from "lucide-react"
 import NewCircleDialog from "./NewCircleDialog"
 
 export default async function CirclesPage() {
@@ -93,44 +93,44 @@ export default async function CirclesPage() {
       {circlesWithProgress.length === 0 ? (
         <div className="pt-8">
           <EmptyState
-            icon={CircleDollarSign}
+            icon={PiggyBank}
             title="Welcome to Fund Circle"
             description="Create your first fund circle to start tracking contributions with full transparency."
           />
         </div>
       ) : (
-        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {circlesWithProgress.map((circle) => (
             <Link key={circle.id} href={`/circles/${circle.id}/dashboard`} className="group">
               <Card className={cn(
                 "hover:shadow-[var(--shadow-card-hover)] hover:border-teal/20 transition-all cursor-pointer h-full",
                 circle.status !== "active" && "opacity-60"
               )}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-[13px] text-[var(--text-primary)] truncate leading-snug">
-                        {circle.name}
-                      </h3>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center shrink-0">
+                        <Wallet className="h-5 w-5 text-teal" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate leading-snug">
+                          {circle.name}
+                        </h3>
+                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5 capitalize">
+                          {circle.role}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex gap-1 shrink-0">
-                      {circle.hasOpenCycle && (
-                        <Badge variant="info" className="text-[10px] h-4 px-1.5">open</Badge>
-                      )}
-                      <Badge
-                        variant={circle.role === "owner" ? "success" : circle.role === "admin" ? "warning" : "default"}
-                        className="text-[10px] h-4 px-1.5"
-                      >
-                        {circle.role}
-                      </Badge>
-                    </div>
+                    {circle.hasOpenCycle && (
+                      <Badge variant="info" className="text-[10px] shrink-0">open</Badge>
+                    )}
                   </div>
 
                   <div className="flex items-baseline gap-1.5 mb-3">
-                    <span className="text-xl font-bold font-tabular text-[var(--text-primary)]">
+                    <span className="text-2xl font-bold font-tabular text-[var(--text-primary)]">
                       {formatCurrency(circle.amount)}
                     </span>
-                    <span className="text-[11px] text-[var(--text-muted)]">
+                    <span className="text-xs text-[var(--text-muted)]">
                       / {circle.frequency.replace(/_/g, " ")}
                     </span>
                   </div>
@@ -141,29 +141,29 @@ export default async function CirclesPage() {
                         <div
                           className={cn(
                             "h-full rounded-full transition-all",
-                            circle.progress === 100 ? "bg-emerald-500" : "bg-teal"
+                            circle.progress >= 100 ? "bg-emerald-500" : "bg-teal"
                           )}
-                          style={{ width: `${circle.progress}%` }}
+                          style={{ width: `${Math.min(circle.progress, 100)}%` }}
                         />
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] text-[var(--text-muted)] font-tabular">
-                          {formatCurrency(circle.totalPaid)} / {formatCurrency(circle.totalExpected)}
+                          {formatCurrency(circle.totalPaid)} of {formatCurrency(circle.totalExpected)}
                         </span>
-                        <span className="text-[11px] font-semibold text-[var(--text-secondary)] tabular-nums">
+                        <Badge variant={circle.progress >= 100 ? "success" : "default"} className="text-[10px] font-tabular">
                           {circle.progress}%
-                        </span>
+                        </Badge>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-[11px] italic text-[var(--text-muted)]">
+                    <p className="text-xs italic text-[var(--text-muted)]">
                       No active cycle
                     </p>
                   )}
 
-                  <div className="flex items-center gap-1 mt-2.5 text-[11px] text-[var(--text-muted)]">
-                    <Users className="h-3 w-3" />
-                    <span>{circle.memberCount}</span>
+                  <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[var(--border-light)] text-xs text-[var(--text-muted)]">
+                    <Users className="h-3.5 w-3.5" />
+                    <span>{circle.memberCount} member{circle.memberCount !== 1 ? "s" : ""}</span>
                   </div>
                 </CardContent>
               </Card>

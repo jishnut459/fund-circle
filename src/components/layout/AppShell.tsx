@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { isAdminOrOwner } from "@/lib/permissions"
 import UserDropdown from "./UserDropdown"
 import {
-  CircleDollarSign,
+  PiggyBank,
   LayoutDashboard,
   Users,
   Banknote,
@@ -49,7 +49,7 @@ function AppSidebar({ currentUser }: { currentUser: AppUser }) {
       <div className="p-4 border-b border-[var(--border-light)]">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-teal flex items-center justify-center shrink-0">
-            <CircleDollarSign className="h-5 w-5 text-white" />
+            <PiggyBank className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
             <h2 className="font-bold text-sm text-[var(--text-primary)] tracking-tight">
@@ -82,7 +82,7 @@ function AppSidebar({ currentUser }: { currentUser: AppUser }) {
           })
         ) : (
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-teal-50 text-teal dark:bg-teal-900/20 dark:text-teal-400 text-sm font-medium">
-            <CircleDollarSign className="h-4 w-4" />
+            <PiggyBank className="h-4 w-4" />
             Fund Circles
           </div>
         )}
@@ -113,7 +113,7 @@ function BottomNav({ currentUser }: { currentUser: AppUser }) {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--bg-surface)] border-t border-[var(--border-color)]">
         <div className="flex items-center justify-center h-16">
           <div className="flex flex-col items-center justify-center gap-0.5 text-teal">
-            <CircleDollarSign className="h-5 w-5" strokeWidth={2.5} />
+            <PiggyBank className="h-5 w-5" strokeWidth={2.5} />
             <span className="text-[10px] font-medium">Circles</span>
           </div>
         </div>
@@ -215,7 +215,7 @@ function MobileHeader({ currentUser }: { currentUser: AppUser }) {
       <div className="flex items-center justify-between px-4 h-12">
         <div className="flex items-center">
           <div className="w-7 h-7 rounded-lg bg-teal flex items-center justify-center shrink-0">
-            <CircleDollarSign className="h-4 w-4 text-white" />
+            <PiggyBank className="h-4 w-4 text-white" />
           </div>
           <span className="ml-2.5 text-sm font-bold text-[var(--text-primary)] tracking-tight">
             Fund Circle

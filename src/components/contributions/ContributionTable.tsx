@@ -1,23 +1,18 @@
 "use client"
 
-import { Fragment, useState } from "react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { useState } from "react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import ContributionStatusBadge from "./ContributionStatusBadge"
 import RecordPaymentDialog from "./RecordPaymentDialog"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatISODate } from "@/lib/format"
+import { ChevronDown } from "lucide-react"
 
 interface Contribution {
   id: string
   userId: string
   userName: string
+  avatarUrl?: string | null
   expectedAmount: number
   paidAmount: number
   paymentDate: string | null
@@ -60,101 +55,86 @@ export default function ContributionTable({
   }
 
   return (
-    <div className="overflow-x-auto -mx-6">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-[var(--border-light)]">
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium sticky left-0 bg-[var(--bg-surface)]">Member</TableHead>
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium hidden sm:table-cell">Expected</TableHead>
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium">Paid</TableHead>
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium">Status</TableHead>
-            <TableHead className="text-xs text-[var(--text-muted)] font-medium hidden md:table-cell">Date</TableHead>
-            {canEdit && !cycleClosed && (
-              <TableHead className="text-xs text-[var(--text-muted)] font-medium w-10" />
+    <div className="space-y-2">
+      {contributions.map((c) => {
+        const isExpanded = expandedId === c.id
+
+        return (
+          <div
+            key={c.id}
+            className={cn(
+              "rounded-xl border border-l-[3px] bg-[var(--bg-surface)] shadow-[var(--shadow-card)] overflow-hidden transition-colors",
+              statusBorder(c.status)
             )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {contributions.map((c, i) => {
-            const isExpanded = expandedId === c.id
-            return (
-              <Fragment key={c.id}>
-                <TableRow
-                  className={cn(
-                    "border-l-[3px] transition-colors cursor-pointer",
-                    statusBorder(c.status),
-                    isExpanded ? "bg-[var(--border-light)]" : `hover:bg-[var(--border-light)] ${i % 2 === 0 ? "" : "bg-[var(--border-light)]/30"}`,
-                  )}
-                  onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                >
-                  <TableCell className="py-3 sticky left-0 bg-inherit">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-sm text-[var(--text-primary)]">
-                        {c.userName}
-                      </span>
-                      <span className="text-xs text-[var(--text-muted)] sm:hidden font-tabular">
-                        {formatCurrency(c.expectedAmount)} expected
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell font-tabular text-sm text-[var(--text-secondary)]">
-                    {formatCurrency(c.expectedAmount)}
-                  </TableCell>
-                  <TableCell className="font-tabular text-sm font-semibold text-[var(--text-primary)]">
-                    {formatCurrency(c.paidAmount)}
-                  </TableCell>
-                  <TableCell>
-                    <ContributionStatusBadge status={c.status} />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-xs text-[var(--text-muted)]">
-                    {formatISODate(c.paymentDate ?? "")}
-                  </TableCell>
-                  {canEdit && !cycleClosed && (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <RecordPaymentDialog
-                        contributionId={c.id}
-                        circleId={circleId}
-                        userId={currentUserId}
-                        expectedAmount={c.expectedAmount}
-                        currentPaid={c.paidAmount}
-                      />
-                    </TableCell>
-                  )}
-                </TableRow>
-                {isExpanded && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={canEdit && !cycleClosed ? 6 : 5}
-                      className="bg-[var(--border-light)] px-4 py-3"
-                    >
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
-                        <div>
-                          <span className="text-[var(--text-muted)]">Expected: </span>
-                          <span className="font-tabular font-medium text-[var(--text-primary)]">
-                            {formatCurrency(c.expectedAmount)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--text-muted)]">Date: </span>
-                          <span className="text-[var(--text-primary)]">
-                            {formatISODate(c.paymentDate ?? "")}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--text-muted)]">Notes: </span>
-                          <span className="text-[var(--text-primary)]">
-                            {c.notes ?? "—"}
-                          </span>
-                        </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+          >
+            <div
+              className="flex items-center gap-3 px-3 py-3 cursor-pointer hover:bg-[var(--border-light)]/60 transition-colors"
+              onClick={() => setExpandedId(isExpanded ? null : c.id)}
+            >
+              <Avatar className="h-9 w-9 shrink-0">
+                {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt={c.userName} />}
+                <AvatarFallback>{c.userName.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-sm text-[var(--text-primary)] truncate">
+                  {c.userName}
+                </p>
+                <ContributionStatusBadge status={c.status} />
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-lg font-bold font-tabular text-[var(--text-primary)]">
+                  {formatCurrency(c.paidAmount)}
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)] font-tabular">
+                  of {formatCurrency(c.expectedAmount)}
+                </p>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
+                  isExpanded && "rotate-180"
                 )}
-              </Fragment>
-            )
-          })}
-        </TableBody>
-      </Table>
+              />
+              {canEdit && !cycleClosed && (
+                <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                  <RecordPaymentDialog
+                    contributionId={c.id}
+                    circleId={circleId}
+                    userId={currentUserId}
+                    memberName={c.userName}
+                    expectedAmount={c.expectedAmount}
+                    currentPaid={c.paidAmount}
+                  />
+                </div>
+              )}
+            </div>
+            {isExpanded && (
+              <div className="px-3 pb-3 pt-0 border-t border-[var(--border-light)] mt-0">
+                <div className="flex flex-wrap gap-x-6 gap-y-1.5 pt-3 text-xs">
+                  <div>
+                    <span className="text-[var(--text-muted)]">Expected: </span>
+                    <span className="font-tabular font-medium text-[var(--text-primary)]">
+                      {formatCurrency(c.expectedAmount)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--text-muted)]">Date: </span>
+                    <span className="text-[var(--text-primary)]">
+                      {formatISODate(c.paymentDate ?? "")}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--text-muted)]">Notes: </span>
+                    <span className="text-[var(--text-primary)]">
+                      {c.notes ?? "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

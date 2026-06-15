@@ -39,3 +39,14 @@ export function formatPercentage(paid: number, expected: number): number {
   if (expected <= 0) return 0
   return Math.round((paid / expected) * 100)
 }
+
+export function formatOrdinal(n: number): string {
+  const remainder100 = n % 100
+  if (remainder100 >= 11 && remainder100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}

@@ -13,12 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { createFundCircle } from "@/lib/actions"
+import CycleDueDaySelect, { getDefaultDueDay } from "@/components/fund-circles/CycleDueDaySelect"
 
 const FREQUENCIES = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
-  { value: "every_15_days", label: "Every 15 Days" },
-  { value: "every_30_days", label: "Every 30 Days" },
-  { value: "every_45_days", label: "Every 45 Days" },
+  { value: "quarterly", label: "Quarterly" },
 ]
 
 const PLANS = [
@@ -39,9 +40,15 @@ export default function FundCircleForm({
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
   const [frequency, setFrequency] = useState("monthly")
+  const [cycleDueDay, setCycleDueDay] = useState<number | null>(getDefaultDueDay("monthly"))
   const [plan, setPlan] = useState("free")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  const handleFrequencyChange = (value: string) => {
+    setFrequency(value)
+    setCycleDueDay(getDefaultDueDay(value))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,7 +56,7 @@ export default function FundCircleForm({
     setLoading(true)
     setError("")
 
-    const result = await createFundCircle(name, description, Number(amount), frequency, userId, plan)
+    const result = await createFundCircle(name, description, Number(amount), frequency, userId, plan, cycleDueDay)
 
     if (!result.success) {
       setError(result.error)
@@ -98,7 +105,7 @@ export default function FundCircleForm({
       </div>
       <div className="space-y-2">
         <Label htmlFor="frequency">Frequency</Label>
-        <Select value={frequency} onValueChange={setFrequency} disabled={loading}>
+        <Select value={frequency} onValueChange={handleFrequencyChange} disabled={loading}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -111,6 +118,7 @@ export default function FundCircleForm({
           </SelectContent>
         </Select>
       </div>
+      <CycleDueDaySelect frequency={frequency} value={cycleDueDay} onChange={setCycleDueDay} disabled={loading} />
       <div className="space-y-2">
         <Label htmlFor="plan">Plan</Label>
         <Select value={plan} onValueChange={setPlan} disabled={loading}>
