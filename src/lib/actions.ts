@@ -728,3 +728,72 @@ export async function extendCircleEndDate(circleId: string, newEndDate: string, 
   revalidatePath(`/circles/${circleId}/settings`)
   return { success: true, data: undefined }
 }
+
+export async function updateLoanSettings(circleId: string, settings: LoanSettings, actorUserId: string): Promise<ActionResult> {
+  if (Math.round((settings.assetAllocationPct + settings.loanAllocationPct) * 100) !== 10000) {
+    return { success: false, error: "Asset and loan allocation percentages must add up to 100%" }
+  }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", actorUserId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) {
+    return { success: false, error: "You don't have permission to edit loan settings for this circle." }
+  }
+
+  const { data: circle, error: circleError } = await supabase
+    .from("fund_circles")
+    .select(
+      "asset_allocation_pct, loan_allocation_pct, loan_interest_rate_pct, max_loan_pct_of_contribution, max_loan_pct_of_lending_pool, contribution_late_fee, contribution_grace_days, loan_late_fee, loan_grace_days"
+    )
+    .eq("id", circleId)
+    .single()
+  if (circleError || !circle) return { success: false, error: "Fund circle not found" }
+
+  const previousValue: LoanSettings = {
+    assetAllocationPct: Number(circle.asset_allocation_pct),
+    loanAllocationPct: Number(circle.loan_allocation_pct),
+    loanInterestRatePct: Number(circle.loan_interest_rate_pct),
+    maxLoanPctOfContribution: Number(circle.max_loan_pct_of_contribution),
+    maxLoanPctOfLendingPool: Number(circle.max_loan_pct_of_lending_pool),
+    contributionLateFee: Number(circle.contribution_late_fee),
+    contributionGraceDays: circle.contribution_grace_days,
+    loanLateFee: Number(circle.loan_late_fee),
+    loanGraceDays: circle.loan_grace_days,
+  }
+
+  const { error: updateError } = await supabase
+    .from("fund_circles")
+    .update({
+      asset_allocation_pct: settings.assetAllocationPct,
+      loan_allocation_pct: settings.loanAllocationPct,
+      loan_interest_rate_pct: settings.loanInterestRatePct,
+      max_loan_pct_of_contribution: settings.maxLoanPctOfContribution,
+      max_loan_pct_of_lending_pool: settings.maxLoanPctOfLendingPool,
+      contribution_late_fee: settings.contributionLateFee,
+      contribution_grace_days: settings.contributionGraceDays,
+      loan_late_fee: settings.loanLateFee,
+      loan_grace_days: settings.loanGraceDays,
+    })
+    .eq("id", circleId)
+  if (updateError) return { success: false, error: "Failed to update loan settings" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_settings_updated",
+    entityType: "fund_circle",
+    entityId: circleId,
+    previousValue,
+    newValue: settings,
+  })
+
+  revalidatePath(`/circles/${circleId}/settings`)
+  return { success: true, data: undefined }
+}

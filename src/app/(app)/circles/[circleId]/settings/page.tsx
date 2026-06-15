@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CalendarRange, Settings, Shield } from "lucide-react"
+import { CalendarRange, HandCoins, Settings, Shield } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { describeCycleDueDay } from "@/lib/cycles"
 import ExtendCircleDialog from "@/components/loans/ExtendCircleDialog"
+import LoanSettingsForm from "@/components/loans/LoanSettingsForm"
 
 export default async function CircleSettingsPage({
   params,
@@ -134,6 +135,32 @@ export default async function CircleSettingsPage({
             actorUserId={user.id}
             currentEndDate={circle.end_date}
             startDate={circle.start_date}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <HandCoins className="h-4 w-4 text-teal" />
+            Loan &amp; Asset Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LoanSettingsForm
+            circleId={circleId}
+            actorUserId={user.id}
+            initialSettings={{
+              assetAllocationPct: Number(circle.asset_allocation_pct),
+              loanAllocationPct: Number(circle.loan_allocation_pct),
+              loanInterestRatePct: Number(circle.loan_interest_rate_pct),
+              maxLoanPctOfContribution: Number(circle.max_loan_pct_of_contribution),
+              maxLoanPctOfLendingPool: Number(circle.max_loan_pct_of_lending_pool),
+              contributionLateFee: Number(circle.contribution_late_fee),
+              contributionGraceDays: circle.contribution_grace_days,
+              loanLateFee: Number(circle.loan_late_fee),
+              loanGraceDays: circle.loan_grace_days,
+            }}
           />
         </CardContent>
       </Card>
