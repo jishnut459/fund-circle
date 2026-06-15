@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle, HandCoins, Landmark, ListChecks, type LucideIcon } from "lucide-react"
+import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle, HandCoins, Landmark, ListChecks, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { formatCurrency, formatISODate } from "@/lib/format"
@@ -40,6 +40,10 @@ interface DashboardData {
   assetsValue: number
   totalPrincipalOutstanding: number
   activeLoanCount: number
+  endDate: string | null
+  settlementStatus: string | null
+  showSettlementBanner: boolean
+  endDatePassed: boolean
 }
 
 function FundsMetricCard({
@@ -91,7 +95,7 @@ function StatChip({
 }
 
 export default function OwnerDashboard({ data }: { data: DashboardData }) {
-  const { currentCycle, totalCollected, recentCycles, circleId, circleMeta, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount } = data
+  const { currentCycle, totalCollected, recentCycles, circleId, circleMeta, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
   const progress = currentCycle && currentCycle.totalExpected > 0
     ? Math.round((currentCycle.totalPaid / currentCycle.totalExpected) * 100)
     : 0
@@ -101,6 +105,23 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
       <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight pb-4">
         Dashboard
       </h2>
+
+      {showSettlementBanner && (
+        <Link href={`/circles/${circleId}/settlement`}>
+          <div className={`flex items-center gap-3 p-4 rounded-xl mb-5 border ${endDatePassed ? "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700" : "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700"}`}>
+            <CalendarClock className={`h-5 w-5 shrink-0 ${endDatePassed ? "text-amber-700 dark:text-amber-400" : "text-blue-700 dark:text-blue-400"}`} />
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${endDatePassed ? "text-amber-900 dark:text-amber-200" : "text-blue-900 dark:text-blue-200"}`}>
+                {endDatePassed ? "Circle end date has passed" : `Circle ends ${formatISODate(endDate!)}`}
+              </p>
+              <p className={`text-xs mt-0.5 ${endDatePassed ? "text-amber-700 dark:text-amber-400" : "text-blue-700 dark:text-blue-400"}`}>
+                {settlementStatus === "draft" ? "Settlement calculated — finalize and disburse payouts" : "Calculate settlement to distribute funds to members"}
+              </p>
+            </div>
+            <ArrowRight className={`h-4 w-4 shrink-0 ${endDatePassed ? "text-amber-700 dark:text-amber-400" : "text-blue-700 dark:text-blue-400"}`} />
+          </div>
+        </Link>
+      )}
 
       {currentCycle ? (
         <Card className="mb-8">

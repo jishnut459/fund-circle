@@ -184,7 +184,10 @@ export default async function CircleSettlementPage({
           <CardContent>
             <SettlementPayoutTable
               payouts={payouts}
+              circleId={circleId}
+              actorUserId={user.id}
               canManage={canManage}
+              settlementFinalized={settlement?.status === "finalized"}
             />
           </CardContent>
         </Card>

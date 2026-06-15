@@ -81,6 +81,12 @@ function formatAuditAction(entry: AuditEntry): string {
     }
     case "circle_settlement_finalized":
       return `${entry.userName} finalized the circle settlement — circle is now closed`
+    case "settlement_payout_disbursed": {
+      const v = entry.newValue as { memberName?: string; shareAmount?: number } | null
+      const name = v?.memberName ? ` to ${v.memberName}` : ""
+      const amt = v?.shareAmount ? ` (${formatCurrency(v.shareAmount)})` : ""
+      return `${entry.userName} recorded settlement payout disbursement${name}${amt}`
+    }
     default:
       return `${entry.userName} ${action}`
   }

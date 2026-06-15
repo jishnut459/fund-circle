@@ -34,7 +34,7 @@ export default async function CircleDashboardPage({
 
   const { data: circle } = await supabase
     .from("fund_circles")
-    .select("name, contribution_amount, contribution_frequency")
+    .select("name, contribution_amount, contribution_frequency, end_date")
     .eq("id", circleId)
     .single()
 
@@ -51,9 +51,24 @@ export default async function CircleDashboardPage({
     memberCount: memberCount ?? 0,
   }
 
-  const eligibility = await getLoanEligibility(circleId, user.id)
-  const fundsSummary = eligibility.success
-    ? eligibility.data
+  const [eligibilityResult, { data: settlementRow }] = await Promise.all([
+    getLoanEligibility(circleId, user.id),
+    supabase
+      .from("circle_settlements")
+      .select("status")
+      .eq("fund_circle_id", circleId)
+      .maybeSingle(),
+  ])
+  const settlementStatus = settlementRow?.status ?? null
+  const endDate = circle?.end_date ?? null
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now()
+  const showSettlementBanner = endDate && settlementStatus !== "finalized"
+    ? Math.ceil((new Date(endDate).getTime() - nowMs) / 86400000) <= 30
+    : false
+  const endDatePassed = endDate ? new Date(endDate).getTime() < nowMs : false
+  const fundsSummary = eligibilityResult.success
+    ? eligibilityResult.data
     : {
         totalContributionsPaid: 0,
         totalContributionsCollected: 0,
@@ -119,6 +134,10 @@ export default async function CircleDashboardPage({
           assetsValue: fundsSummary.assetsValue,
           totalPrincipalOutstanding: fundsSummary.totalPrincipalOutstanding,
           activeLoanCount: fundsSummary.activeLoanCount,
+          endDate,
+          settlementStatus,
+          showSettlementBanner,
+          endDatePassed,
         }}
       />
     )
@@ -163,6 +182,10 @@ export default async function CircleDashboardPage({
         assetsValue: fundsSummary.assetsValue,
         myOutstandingLoan: fundsSummary.outstandingPrincipal,
         myLoanEligibility: fundsSummary.eligibleAmount,
+        endDate,
+        settlementStatus,
+        showSettlementBanner,
+        endDatePassed,
       }}
     />
   )
