@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +18,8 @@ interface EMICalculatorProps {
   maxTermMonths?: number
   /** If set, caps the loan amount (e.g. the member's computed eligibleAmount). */
   maxAmount?: number
+  /** Called whenever the amount, rate, or term changes (after clamping). */
+  onChange?: (values: { amount: number; ratePct: number; termMonths: number }) => void
 }
 
 export default function EMICalculator({
@@ -27,6 +29,7 @@ export default function EMICalculator({
   fixedRatePct,
   maxTermMonths,
   maxAmount,
+  onChange,
 }: EMICalculatorProps) {
   const [amount, setAmount] = useState(String(defaultAmount))
   const [ratePct, setRatePct] = useState(String(fixedRatePct ?? defaultRatePct))
@@ -35,6 +38,11 @@ export default function EMICalculator({
   const principal = Number(amount) || 0
   const rate = fixedRatePct ?? (Number(ratePct) || 0)
   const term = Math.floor(Number(termMonths)) || 0
+
+  useEffect(() => {
+    onChange?.({ amount: principal, ratePct: rate, termMonths: term })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [principal, rate, term])
 
   const handleAmountChange = (value: string) => {
     if (maxAmount !== undefined && Number(value) > maxAmount) {

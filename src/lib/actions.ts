@@ -7,7 +7,9 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
-import { computeEligibility, computeLendingPoolAvailable } from "@/lib/loans"
+import { computeEligibility, computeLendingPoolAvailable, finalInstallmentDate } from "@/lib/loans"
+import { toISODate } from "@/lib/cycles"
+import { formatCurrency } from "@/lib/format"
 import type { ActionResult, LoanSettings } from "@/lib/types"
 
 const PLAN_LIMITS: Record<string, number> = { free: 20, pro: 100, premium: 9999 }
@@ -369,4 +371,90 @@ export async function getLoanEligibility(circleId: string, userId: string): Prom
     success: true,
     data: { totalContributionsPaid, lendingPoolAvailable, maxByContribution, maxByPool, eligibleAmount },
   }
+}
+
+export async function requestLoan(circleId: string, userId: string, amount: number, termMonths: number, purpose: string): Promise<ActionResult<{ loanId: string }>> {
+  if (!amount || amount <= 0) return { success: false, error: "Enter a loan amount greater than zero" }
+  if (!termMonths || termMonths <= 0) return { success: false, error: "Enter a loan term of at least 1 month" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: circle, error: circleError } = await supabase
+    .from("fund_circles")
+    .select("end_date")
+    .eq("id", circleId)
+    .single()
+  if (circleError || !circle) return { success: false, error: "Fund circle not found" }
+
+  const eligibility = await getLoanEligibility(circleId, userId)
+  if (!eligibility.success) return { success: false, error: eligibility.error }
+  if (amount > eligibility.data.eligibleAmount) {
+    return { success: false, error: `This amount exceeds your loan eligibility of ${formatCurrency(eligibility.data.eligibleAmount)}` }
+  }
+
+  if (circle.end_date) {
+    const lastInstallment = toISODate(finalInstallmentDate(new Date(), termMonths))
+    if (lastInstallment > circle.end_date) {
+      return { success: false, error: "This term would push the final repayment past the circle's end date" }
+    }
+  }
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans")
+    .insert({
+      fund_circle_id: circleId,
+      user_id: userId,
+      status: "pending_request",
+      requested_amount: amount,
+      requested_term_months: termMonths,
+      purpose: purpose || null,
+      requested_by: userId,
+    })
+    .select("id")
+    .single()
+  if (loanError || !loan) return { success: false, error: "Failed to submit loan request" }
+
+  await writeAuditLog({
+    circleId,
+    userId,
+    action: "loan_request_created",
+    entityType: "loan",
+    entityId: loan.id,
+    newValue: { requestedAmount: amount, requestedTermMonths: termMonths, purpose },
+  })
+
+  revalidatePath(`/circles/${circleId}/loans`)
+  return { success: true, data: { loanId: loan.id } }
+}
+
+export async function cancelLoanRequest(loanId: string, userId: string, circleId: string): Promise<ActionResult> {
+  const supabase = createAdminSupabaseClient()
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans")
+    .select("user_id, status")
+    .eq("id", loanId)
+    .single()
+  if (loanError || !loan) return { success: false, error: "Loan request not found" }
+  if (loan.user_id !== userId) return { success: false, error: "You can only cancel your own loan requests" }
+  if (loan.status !== "pending_request") return { success: false, error: "Only pending requests can be cancelled" }
+
+  const { error: updateError } = await supabase
+    .from("loans")
+    .update({ status: "cancelled" })
+    .eq("id", loanId)
+  if (updateError) return { success: false, error: "Failed to cancel loan request" }
+
+  await writeAuditLog({
+    circleId,
+    userId,
+    action: "loan_request_cancelled",
+    entityType: "loan",
+    entityId: loanId,
+    previousValue: { status: "pending_request" },
+    newValue: { status: "cancelled" },
+  })
+
+  revalidatePath(`/circles/${circleId}/loans`)
+  return { success: true, data: undefined }
 }
