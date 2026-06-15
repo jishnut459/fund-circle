@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge, type BadgeProps } from "@/components/ui/badge"
-import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle, TrendingUp, type LucideIcon } from "lucide-react"
+import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle, TrendingUp, HandCoins, Landmark, type LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatCurrency, formatISODate } from "@/lib/format"
 
@@ -32,6 +32,36 @@ interface MemberData {
     status: string
   }>
   circleId: string
+  lendingPoolAvailable: number
+  assetsValue: number
+  myOutstandingLoan: number
+  myLoanEligibility: number
+}
+
+function FundsMetricCard({
+  icon: Icon,
+  label,
+  value,
+  iconClass,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  iconClass: string
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <p className="text-xs font-medium text-[var(--text-muted)] truncate">{label}</p>
+        </div>
+        <p className="text-xl font-bold font-tabular text-[var(--text-primary)]">{value}</p>
+      </CardContent>
+    </Card>
+  )
 }
 
 const STATUS_BADGE: Record<string, NonNullable<BadgeProps["variant"]>> = {
@@ -63,7 +93,7 @@ const STATUS_BAR_COLOR: Record<string, string> = {
 }
 
 export default function MemberDashboard({ data }: { data: MemberData }) {
-  const { currentCycle, totalPaid, cycles, circleMeta } = data
+  const { currentCycle, totalPaid, cycles, circleMeta, lendingPoolAvailable, assetsValue, myOutstandingLoan, myLoanEligibility } = data
   const progress = currentCycle && currentCycle.expectedAmount > 0
     ? Math.round((currentCycle.paidAmount / currentCycle.expectedAmount) * 100)
     : 0
@@ -164,6 +194,33 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
           </CardContent>
         </Card>
       )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <FundsMetricCard
+          icon={HandCoins}
+          label="Lending Pool Available"
+          value={formatCurrency(lendingPoolAvailable)}
+          iconClass="bg-teal-50 dark:bg-teal-900/20 text-teal"
+        />
+        <FundsMetricCard
+          icon={Landmark}
+          label="Assets Value"
+          value={formatCurrency(assetsValue)}
+          iconClass="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+        />
+        <FundsMetricCard
+          icon={Wallet}
+          label="My Outstanding Loan"
+          value={formatCurrency(myOutstandingLoan)}
+          iconClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+        />
+        <FundsMetricCard
+          icon={TrendingUp}
+          label="My Loan Eligibility"
+          value={formatCurrency(myLoanEligibility)}
+          iconClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+        />
+      </div>
 
       <Card>
         <CardHeader className="pb-3">

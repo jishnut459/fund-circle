@@ -7,7 +7,7 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
-import { computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, roundCurrency } from "@/lib/loans"
+import { computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, roundCurrency } from "@/lib/loans"
 import { toISODate } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
 import type { ActionResult, LoanSettings } from "@/lib/types"
@@ -290,7 +290,12 @@ export async function closeCycleFormAction(formData: FormData): Promise<void> {
 
 export type LoanEligibility = {
   totalContributionsPaid: number
+  totalContributionsCollected: number
+  assetsValue: number
   lendingPoolAvailable: number
+  totalPrincipalOutstanding: number
+  activeLoanCount: number
+  outstandingPrincipal: number
   maxByContribution: number
   maxByPool: number
   eligibleAmount: number
@@ -301,7 +306,7 @@ export async function getLoanEligibility(circleId: string, userId: string): Prom
 
   const { data: circle, error: circleError } = await supabase
     .from("fund_circles")
-    .select("loan_allocation_pct, max_loan_pct_of_contribution, max_loan_pct_of_lending_pool")
+    .select("asset_allocation_pct, loan_allocation_pct, max_loan_pct_of_contribution, max_loan_pct_of_lending_pool")
     .eq("id", circleId)
     .single()
   if (circleError || !circle) return { success: false, error: "Fund circle not found" }
@@ -359,6 +364,8 @@ export async function getLoanEligibility(circleId: string, userId: string): Prom
     totalPrincipalOutstanding,
   })
 
+  const assetsValue = computeAssetsValue(totalContributionsCollected, Number(circle.asset_allocation_pct))
+
   const { maxByContribution, maxByPool, eligibleAmount } = computeEligibility({
     totalContributionsPaid,
     maxLoanPctOfContribution: Number(circle.max_loan_pct_of_contribution),
@@ -369,7 +376,18 @@ export async function getLoanEligibility(circleId: string, userId: string): Prom
 
   return {
     success: true,
-    data: { totalContributionsPaid, lendingPoolAvailable, maxByContribution, maxByPool, eligibleAmount },
+    data: {
+      totalContributionsPaid,
+      totalContributionsCollected,
+      assetsValue,
+      lendingPoolAvailable,
+      totalPrincipalOutstanding,
+      activeLoanCount: loanIds.length,
+      outstandingPrincipal,
+      maxByContribution,
+      maxByPool,
+      eligibleAmount,
+    },
   }
 }
 

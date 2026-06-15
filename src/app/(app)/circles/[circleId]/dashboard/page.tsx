@@ -5,6 +5,7 @@ import { isAdminOrOwner } from "@/lib/permissions"
 import OwnerDashboard from "@/components/dashboard/OwnerDashboard"
 import MemberDashboard from "@/components/dashboard/MemberDashboard"
 import { ensureCurrentCycle } from "@/lib/ensure-cycle"
+import { getLoanEligibility } from "@/lib/actions"
 
 export default async function CircleDashboardPage({
   params,
@@ -49,6 +50,22 @@ export default async function CircleDashboardPage({
     frequency: circle?.contribution_frequency ?? "monthly",
     memberCount: memberCount ?? 0,
   }
+
+  const eligibility = await getLoanEligibility(circleId, user.id)
+  const fundsSummary = eligibility.success
+    ? eligibility.data
+    : {
+        totalContributionsPaid: 0,
+        totalContributionsCollected: 0,
+        assetsValue: 0,
+        lendingPoolAvailable: 0,
+        totalPrincipalOutstanding: 0,
+        activeLoanCount: 0,
+        outstandingPrincipal: 0,
+        maxByContribution: 0,
+        maxByPool: 0,
+        eligibleAmount: 0,
+      }
 
   if (isAdminOrOwner(role)) {
     const { data: openCycle } = await supabase
@@ -98,6 +115,10 @@ export default async function CircleDashboardPage({
           totalCollected,
           recentCycles,
           circleId,
+          lendingPoolAvailable: fundsSummary.lendingPoolAvailable,
+          assetsValue: fundsSummary.assetsValue,
+          totalPrincipalOutstanding: fundsSummary.totalPrincipalOutstanding,
+          activeLoanCount: fundsSummary.activeLoanCount,
         }}
       />
     )
@@ -138,6 +159,10 @@ export default async function CircleDashboardPage({
         currentCycle,
         cycles,
         circleId,
+        lendingPoolAvailable: fundsSummary.lendingPoolAvailable,
+        assetsValue: fundsSummary.assetsValue,
+        myOutstandingLoan: fundsSummary.outstandingPrincipal,
+        myLoanEligibility: fundsSummary.eligibleAmount,
       }}
     />
   )
