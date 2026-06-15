@@ -4,10 +4,13 @@ import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { PlayCircle, CheckCircle2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PlayCircle, CheckCircle2, Landmark, ArrowRight } from "lucide-react"
 import ContributionTable from "@/components/contributions/ContributionTable"
+import AssetRecordForm from "@/components/settlement/AssetRecordForm"
 import { closeCycleFormAction } from "@/lib/actions"
 import { formatCurrency, formatISODate, formatPercentage } from "@/lib/format"
+import Link from "next/link"
 
 export default async function CycleDetailPage({
   params,
@@ -33,11 +36,18 @@ export default async function CycleDetailPage({
   const role = membership.role
   const canEdit = isAdminOrOwner(role)
 
-  const { data: cycle } = await supabase
-    .from("contribution_cycles")
-    .select("id, label, cycle_start, cycle_end, due_date, status, fund_circle_id")
-    .eq("id", cycleId)
-    .single()
+  const [{ data: cycle }, { data: circleMeta }] = await Promise.all([
+    supabase
+      .from("contribution_cycles")
+      .select("id, label, cycle_start, cycle_end, due_date, status, fund_circle_id")
+      .eq("id", cycleId)
+      .single(),
+    supabase
+      .from("fund_circles")
+      .select("asset_allocation_pct")
+      .eq("id", circleId)
+      .single(),
+  ])
 
   if (!cycle) redirect(`/circles/${circleId}/cycles`)
 
@@ -75,6 +85,8 @@ export default async function CycleDetailPage({
   const totalExpected = contributions.reduce((s, c) => s + c.expectedAmount, 0)
   const totalPaid = contributions.reduce((s, c) => s + c.paidAmount, 0)
   const progress = formatPercentage(totalPaid, totalExpected)
+  const assetAllocationPct = Number(circleMeta?.asset_allocation_pct ?? 0)
+  const suggestedAssetAmount = Math.round(totalPaid * assetAllocationPct) / 100
 
   return (
     <div>
@@ -117,6 +129,34 @@ export default async function CycleDetailPage({
           </form>
         )}
       </div>
+
+      {cycleClosed && canEdit && assetAllocationPct > 0 && (
+        <Card className="mb-6">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2">
+              <Landmark className="h-4 w-4 text-teal" />
+              Log Asset Allocation
+            </CardTitle>
+            <p className="text-sm text-[var(--text-muted)]">
+              {formatCurrency(suggestedAssetAmount)} ({assetAllocationPct}%) of this cycle&apos;s collections should be allocated to assets.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AssetRecordForm
+              circleId={circleId}
+              actorUserId={user.id}
+              cycleId={cycleId}
+              suggestedAmount={suggestedAssetAmount}
+            />
+            <Link
+              href={`/circles/${circleId}/settlement`}
+              className="inline-flex items-center gap-1 text-xs text-teal hover:text-teal-dark font-medium"
+            >
+              View full asset log <ArrowRight className="h-3 w-3" />
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <ContributionTable
         contributions={contributions}

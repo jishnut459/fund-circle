@@ -10,7 +10,7 @@ import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
 import { computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, roundCurrency } from "@/lib/loans"
 import { toISODate } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
-import type { ActionResult, LoanSettings } from "@/lib/types"
+import type { ActionResult, AssetType, LoanSettings } from "@/lib/types"
 
 const PLAN_LIMITS: Record<string, number> = { free: 20, pro: 100, premium: 9999 }
 
@@ -744,6 +744,83 @@ export async function extendCircleEndDate(circleId: string, newEndDate: string, 
   })
 
   revalidatePath(`/circles/${circleId}/settings`)
+  return { success: true, data: undefined }
+}
+
+const VALID_ASSET_TYPES: AssetType[] = ["recurring_deposit", "fixed_deposit", "cash_in_hand", "mutual_fund", "other"]
+
+export async function addCycleAssetRecord(
+  circleId: string,
+  cycleId: string | null,
+  assetType: string,
+  institution: string,
+  amount: number,
+  notes: string,
+  actorUserId: string
+): Promise<ActionResult> {
+  if (!circleId || !actorUserId) return { success: false, error: "Missing required fields" }
+  if (!VALID_ASSET_TYPES.includes(assetType as AssetType)) return { success: false, error: "Invalid asset type" }
+  if (amount < 0) return { success: false, error: "Amount cannot be negative" }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: membership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) return { success: false, error: "You don't have permission to record asset allocations for this circle." }
+
+  const { data: record, error } = await supabase
+    .from("cycle_asset_records")
+    .insert({
+      fund_circle_id: circleId,
+      contribution_cycle_id: cycleId,
+      asset_type: assetType,
+      institution: institution || null,
+      amount: Number(amount),
+      notes: notes || null,
+      recorded_by: actorUserId,
+    })
+    .select("id")
+    .single()
+
+  if (error || !record) return { success: false, error: "Failed to record asset allocation" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "cycle_asset_recorded",
+    entityType: "cycle_asset_record",
+    entityId: record.id,
+    newValue: { assetType, institution: institution || null, amount: Number(amount), notes: notes || null, contributionCycleId: cycleId },
+  })
+
+  revalidatePath(`/circles/${circleId}/settlement`)
+  if (cycleId) revalidatePath(`/circles/${circleId}/cycles/${cycleId}`)
+  return { success: true, data: undefined }
+}
+
+export async function updateAssetRecordValue(recordId: string, currentValue: number, actorUserId: string, circleId: string): Promise<ActionResult> {
+  if (!recordId || !circleId || !actorUserId) return { success: false, error: "Missing required fields" }
+  if (currentValue < 0) return { success: false, error: "Current value cannot be negative" }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: membership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) return { success: false, error: "You don't have permission to update asset values for this circle." }
+
+  const { data: existing } = await supabase.from("cycle_asset_records").select("current_value, fund_circle_id").eq("id", recordId).single()
+  if (!existing || existing.fund_circle_id !== circleId) return { success: false, error: "Asset record not found" }
+
+  const { error } = await supabase.from("cycle_asset_records").update({ current_value: Number(currentValue) }).eq("id", recordId)
+  if (error) return { success: false, error: "Failed to update asset value" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "asset_record_revalued",
+    entityType: "cycle_asset_record",
+    entityId: recordId,
+    previousValue: { currentValue: existing.current_value !== null ? Number(existing.current_value) : null },
+    newValue: { currentValue: Number(currentValue) },
+  })
+
+  revalidatePath(`/circles/${circleId}/settlement`)
   return { success: true, data: undefined }
 }
 

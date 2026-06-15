@@ -65,6 +65,16 @@ function formatAuditAction(entry: AuditEntry): string {
       return `${entry.userName} revoked an invitation`
     case "invite_accepted":
       return `${entry.userName} accepted an invitation`
+    case "cycle_asset_recorded": {
+      const v = entry.newValue as { assetType: string; institution: string | null; amount: number } | null
+      const label = v?.assetType?.replace(/_/g, " ") ?? "asset"
+      const inst = v?.institution ? ` at ${v.institution}` : ""
+      return `${entry.userName} logged ${formatCurrency(v?.amount ?? 0)} in ${label}${inst}`
+    }
+    case "asset_record_revalued": {
+      const v = entry.newValue as { currentValue: number } | null
+      return `${entry.userName} updated an asset's current value to ${formatCurrency(v?.currentValue ?? 0)}`
+    }
     default:
       return `${entry.userName} ${action}`
   }

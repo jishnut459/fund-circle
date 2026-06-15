@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CalendarRange, HandCoins, Settings, Shield } from "lucide-react"
+import { ArrowRight, CalendarRange, HandCoins, Landmark, Settings, Shield } from "lucide-react"
+import Link from "next/link"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { describeCycleDueDay } from "@/lib/cycles"
@@ -162,6 +163,26 @@ export default async function CircleSettingsPage({
               loanGraceDays: circle.loan_grace_days,
             }}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-teal" />
+            Asset Allocation Log
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-[var(--text-muted)] mb-3">
+            Track where asset-allocated contributions are invested. Visible to all circle members.
+          </p>
+          <Link
+            href={`/circles/${circleId}/settlement`}
+            className="inline-flex items-center gap-1.5 text-sm text-teal hover:text-teal-dark font-medium"
+          >
+            View asset allocation log <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </CardContent>
       </Card>
 
