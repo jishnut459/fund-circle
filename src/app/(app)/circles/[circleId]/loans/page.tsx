@@ -6,7 +6,6 @@ import { isAdminOrOwner } from "@/lib/permissions"
 import { getLoanEligibility } from "@/lib/actions"
 import { monthsUntil } from "@/lib/loans"
 import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/ui/empty-state"
 import LoanReviewDialog from "@/components/loans/LoanReviewDialog"
 import LoanCard, { type LoanCardData } from "@/components/loans/LoanCard"
 import EligibilityWidget from "@/components/loans/EligibilityWidget"
@@ -161,16 +160,9 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <EligibilityWidget circleId={circleId} userId={user.id} />
 
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">My Loans</h3>
-          {myLoanCards.filter((l) => l.status === "active").length === 0 ? (
-            <EmptyState
-              icon={HandCoins}
-              title="No active loans"
-              description="Request a loan against your contributions whenever you need it."
-              action={canRequestLoan ? { label: "Request Loan", href: `/circles/${circleId}/loans/new` } : undefined}
-            />
-          ) : (
+        {myLoanCards.filter((l) => l.status === "active").length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">My Loans</h3>
             <div className="space-y-3">
               {myLoanCards
                 .filter((l) => l.status === "active")
@@ -178,8 +170,8 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
                   <LoanCard key={loan.id} circleId={circleId} loan={loan} />
                 ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Own pending request — visible to all members */}
