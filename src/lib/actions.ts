@@ -87,6 +87,32 @@ async function sendCircleInviteEmail(email: string, circleName: string, fullName
   return !error
 }
 
+export async function lookupUserByEmail(email: string): Promise<ActionResult<{
+  exists: boolean
+  name: string | null
+  avatarUrl: string | null
+}>> {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return { success: false, error: "Email is required" }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return { success: false, error: "Enter a valid email address" }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("name, avatar_url")
+    .eq("email", normalizedEmail)
+    .maybeSingle()
+
+  return {
+    success: true,
+    data: {
+      exists: !!profile,
+      name: profile?.name ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
+    },
+  }
+}
+
 export async function lookupCircleMemberByEmail(circleId: string, email: string): Promise<ActionResult<{
   exists: boolean
   name: string | null

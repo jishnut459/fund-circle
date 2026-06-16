@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
 import { EmptyState } from "@/components/ui/empty-state"
-import { PiggyBank, Users, Wallet } from "lucide-react"
-import NewCircleDialog from "./NewCircleDialog"
+import { PiggyBank, Plus, Users, Wallet } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export default async function CirclesPage() {
   const user = await getCurrentUser()
@@ -86,7 +86,12 @@ export default async function CirclesPage() {
               {circlesWithProgress.length} circle{circlesWithProgress.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <NewCircleDialog userId={user.id} />
+          <Button size="sm" className="shadow-sm" asChild>
+            <Link href="/circles/new">
+              <Plus className="h-4 w-4" />
+              New Circle
+            </Link>
+          </Button>
         </div>
       </div>
 
