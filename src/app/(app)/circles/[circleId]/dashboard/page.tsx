@@ -85,23 +85,6 @@ export default async function CircleDashboardPage({
       }
 
   if (isAdminOrOwner(role)) {
-    const { data: openCycle } = await supabase
-      .from("contribution_cycles")
-      .select("id, label, status, due_date, contributions(paid_amount, expected_amount)")
-      .eq("fund_circle_id", circleId)
-      .eq("status", "open")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const cycle = openCycle ?? null
-    const contribs = cycle?.contributions as Array<{ paid_amount: number; expected_amount: number }> | undefined
-    const openTotalExpected = contribs?.reduce((s, c) => s + Number(c.expected_amount), 0) ?? 0
-    const openTotalPaid = contribs?.reduce((s, c) => s + Number(c.paid_amount), 0) ?? 0
-    const paidCount = contribs?.filter((c) => Number(c.paid_amount) >= Number(c.expected_amount)).length ?? 0
-    const partialCount = contribs?.filter((c) => Number(c.paid_amount) > 0 && Number(c.paid_amount) < Number(c.expected_amount)).length ?? 0
-    const unpaidCount = contribs?.filter((c) => Number(c.paid_amount) === 0).length ?? 0
-
     const { data: allCycles } = await supabase
       .from("contribution_cycles")
       .select("id, label, status, contributions(paid_amount, expected_amount)")
@@ -127,8 +110,6 @@ export default async function CircleDashboardPage({
     return (
       <OwnerDashboard
         data={{
-          circleMeta,
-          currentCycle: cycle ? { label: cycle.label, status: cycle.status, dueDate: cycle.due_date, totalExpected: openTotalExpected, totalPaid: openTotalPaid, paidCount, partialCount, unpaidCount } : null,
           totalCollected,
           recentCycles,
           circleId,

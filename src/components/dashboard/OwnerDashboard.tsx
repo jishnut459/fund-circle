@@ -1,28 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Banknote, Users, Repeat, CheckCircle2, Clock, HandCoins, Landmark, Wallet, ListChecks, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
+import { Banknote, CheckCircle2, Clock, HandCoins, Landmark, Wallet, ListChecks, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { formatCurrency, formatISODate } from "@/lib/format"
 import FundHealthCard from "./FundHealthCard"
 
 interface DashboardData {
-  circleMeta: {
-    name: string
-    amount: number
-    frequency: string
-    memberCount: number
-  }
-  currentCycle: {
-    label: string
-    status: string
-    dueDate: string | null
-    totalExpected: number
-    totalPaid: number
-    paidCount: number
-    partialCount: number
-    unpaidCount: number
-  } | null
   totalCollected: number
   recentCycles: Array<{
     id: string
@@ -87,10 +70,7 @@ function FundsMetricCard({
 
 
 export default function OwnerDashboard({ data }: { data: DashboardData }) {
-  const { currentCycle, totalCollected, recentCycles, circleId, circleMeta, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, totalDisbursed, totalRepaid, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
-  const progress = currentCycle && currentCycle.totalExpected > 0
-    ? Math.round((currentCycle.totalPaid / currentCycle.totalExpected) * 100)
-    : 0
+  const { totalCollected, recentCycles, circleId, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, totalDisbursed, totalRepaid, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
 
   return (
     <div>
@@ -120,68 +100,6 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
         totalDisbursed={totalDisbursed}
         totalRepaid={totalRepaid}
       />
-
-      {currentCycle ? (
-        <Card className="mb-8 overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
-              <div>
-                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">{currentCycle.label}</h3>
-                {currentCycle.dueDate && (
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Due {formatISODate(currentCycle.dueDate)}</p>
-                )}
-              </div>
-              <Badge variant={currentCycle.status === "open" ? "info" : "default"} className="text-[10px] shrink-0 mt-0.5">
-                {currentCycle.status}
-              </Badge>
-            </div>
-            <div className="px-5 pb-4 sm:px-6">
-              <div className="flex items-end justify-between gap-2 mb-1">
-                <p className="text-5xl font-bold font-tabular text-[var(--text-primary)] leading-none">
-                  {formatCurrency(currentCycle.totalPaid)}
-                </p>
-                <p className="text-xl font-bold font-tabular text-teal mb-0.5">{progress}%</p>
-              </div>
-              <p className="text-sm text-[var(--text-muted)] mt-2 mb-4">
-                of {formatCurrency(currentCycle.totalExpected)} expected this cycle
-              </p>
-              <div className="w-full h-2 bg-[var(--border-light)] rounded-full overflow-hidden">
-                <div className="h-full bg-teal rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
-              </div>
-            </div>
-            <div className="border-t border-[var(--border-light)] px-5 py-3 sm:px-6 flex items-center gap-5 flex-wrap">
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                <span className="text-sm font-bold font-tabular text-[var(--text-primary)]">{currentCycle.paidCount}</span>
-                <span className="text-xs text-[var(--text-muted)]">paid</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                <span className="text-sm font-bold font-tabular text-[var(--text-primary)]">{currentCycle.partialCount}</span>
-                <span className="text-xs text-[var(--text-muted)]">partial</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0" />
-                <span className="text-sm font-bold font-tabular text-[var(--text-primary)]">{currentCycle.unpaidCount}</span>
-                <span className="text-xs text-[var(--text-muted)]">unpaid</span>
-              </span>
-              <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                <Users className="h-3.5 w-3.5" />
-                {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
-                <span className="mx-1">·</span>
-                <Repeat className="h-3.5 w-3.5" />
-                {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="mb-8">
-          <CardContent className="p-5 sm:p-6">
-            <EmptyState icon={Banknote} title="No active cycle" description="Start a cycle to begin tracking contributions from members." />
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <FundsMetricCard
