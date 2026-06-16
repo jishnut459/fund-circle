@@ -34,6 +34,11 @@ const DEFAULT_LOAN_SETTINGS: LoanSettings = {
   loanGraceDays: 0,
 }
 
+function todayISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
 const DEFAULT_STEP1: Step1Data = {
   name: "",
   description: "",
@@ -41,7 +46,7 @@ const DEFAULT_STEP1: Step1Data = {
   frequency: "monthly",
   cycleDueDay: getDefaultDueDay("monthly"),
   plan: "free",
-  startDate: "",
+  startDate: todayISO(),
   endDate: "",
 }
 

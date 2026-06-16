@@ -20,7 +20,7 @@ const WEEKDAYS = [
   { value: 7, label: "Sunday" },
 ]
 
-const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
+const MONTH_DAYS = Array.from({ length: 28 }, (_, i) => i + 1)
 
 /** Sensible default cycle_due_day for a given frequency (null = no setting needed). */
 export function getDefaultDueDay(frequency: string): number | null {
@@ -76,6 +76,7 @@ export default function CycleDueDaySelect({
               {formatOrdinal(d)}{frequency === "quarterly" ? " of the quarter" : " of the month"}
             </SelectItem>
           ))}
+          <SelectItem value="0">Last day of the month</SelectItem>
         </SelectContent>
       </Select>
     </div>

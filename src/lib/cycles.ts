@@ -68,9 +68,9 @@ export function describeCycleDueDay(frequency: string, dueDay: number | null): s
     case "weekly":
       return dueDay ? `Every ${WEEKDAY_NAMES[dueDay % 7]}` : "End of each week"
     case "quarterly":
-      return dueDay ? `${formatOrdinal(dueDay)} of the quarter's first month` : "End of each quarter"
+      return dueDay ? `${formatOrdinal(dueDay)} of the quarter's first month` : "Last day of the month"
     case "monthly":
-      return dueDay ? `${formatOrdinal(dueDay)} of each month` : "End of each month"
+      return dueDay ? `${formatOrdinal(dueDay)} of each month` : "Last day of the month"
     default:
       return "Same day"
   }

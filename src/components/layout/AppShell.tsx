@@ -28,7 +28,7 @@ interface AppUser {
 function AppSidebar({ currentUser }: { currentUser: AppUser }) {
   const pathname = usePathname()
   const isCirclesHome = pathname === "/circles"
-  const isInCircle = pathname.startsWith("/circles/") && !isCirclesHome
+  const isInCircle = pathname.startsWith("/circles/") && !isCirclesHome && pathname.split("/")[2] !== "new"
   const circleId = isInCircle ? pathname.split("/")[2] : ""
 
   const circleLinks = isInCircle
@@ -107,7 +107,7 @@ function AppSidebar({ currentUser }: { currentUser: AppUser }) {
 function BottomNav({ currentUser }: { currentUser: AppUser }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
-  const isInCircle = pathname.startsWith("/circles/") && pathname !== "/circles"
+  const isInCircle = pathname.startsWith("/circles/") && pathname !== "/circles" && pathname.split("/")[2] !== "new"
   const circleId = isInCircle ? pathname.split("/")[2] : ""
 
   if (!isInCircle) {

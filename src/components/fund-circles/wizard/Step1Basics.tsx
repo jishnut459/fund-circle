@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DatePicker } from "@/components/ui/date-picker"
 import CycleDueDaySelect, { getDefaultDueDay } from "@/components/fund-circles/CycleDueDaySelect"
 import Link from "next/link"
 
@@ -58,7 +59,13 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
       ? "End date must be on or after the start date"
       : ""
 
-  const canProceed = name.trim() !== "" && amount !== "" && Number(amount) > 0 && !dateError
+  const canProceed =
+    name.trim() !== "" &&
+    amount !== "" &&
+    Number(amount) > 0 &&
+    startDate !== "" &&
+    endDate !== "" &&
+    !dateError
 
   const handleFrequencyChange = (value: string) => {
     setFrequency(value)
@@ -139,21 +146,22 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="s1-start-date">Start Date <span className="text-[var(--text-muted)] font-normal">(optional)</span></Label>
-          <Input
+          <Label htmlFor="s1-start-date">Start Date</Label>
+          <DatePicker
             id="s1-start-date"
-            type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={setStartDate}
+            placeholder="Pick start date"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="s1-end-date">End Date <span className="text-[var(--text-muted)] font-normal">(optional)</span></Label>
-          <Input
+          <Label htmlFor="s1-end-date">End Date</Label>
+          <DatePicker
             id="s1-end-date"
-            type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={setEndDate}
+            placeholder="Pick end date"
+            minDate={startDate ? new Date(startDate + "T00:00:00") : undefined}
           />
         </div>
       </div>
