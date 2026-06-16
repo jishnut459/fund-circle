@@ -208,48 +208,40 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
         </div>
       )}
 
-      {/* Admin: other members' pending requests */}
-      {isAdminOrOwner(membership.role) && (
+      {/* Admin: other members' pending requests — only shown when there are some */}
+      {isAdminOrOwner(membership.role) && pendingRequests.filter((l) => l.userId !== user.id).length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">Pending Requests</h3>
-          {pendingRequests.filter((l) => l.userId !== user.id).length === 0 ? (
-            <EmptyState
-              icon={HandCoins}
-              title="No pending requests"
-              description="Loan requests submitted by members will appear here for review."
-            />
-          ) : (
-            <div className="space-y-3">
-              {pendingRequests
-                .filter((l) => l.userId !== user.id)
-                .map((loan) => (
-                  <div
-                    key={loan.id}
-                    className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[var(--text-primary)] truncate">{loan.memberName}</p>
-                      <p className="text-sm font-tabular font-medium text-[var(--text-primary)]">
-                        {formatCurrency(loan.requestedAmount)} &middot; {loan.requestedTermMonths} months
-                      </p>
-                      {loan.purpose && <p className="text-xs text-[var(--text-muted)] truncate">{loan.purpose}</p>}
-                    </div>
-                    <LoanReviewDialog
-                      loanId={loan.id}
-                      circleId={circleId}
-                      actorUserId={user.id}
-                      memberName={loan.memberName}
-                      requestedAmount={loan.requestedAmount}
-                      requestedTermMonths={loan.requestedTermMonths}
-                      purpose={loan.purpose}
-                      fixedRatePct={fixedRatePct}
-                      maxAmount={loan.maxAmount}
-                      maxTermMonths={maxTermMonths}
-                    />
+          <div className="space-y-3">
+            {pendingRequests
+              .filter((l) => l.userId !== user.id)
+              .map((loan) => (
+                <div
+                  key={loan.id}
+                  className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[var(--text-primary)] truncate">{loan.memberName}</p>
+                    <p className="text-sm font-tabular font-medium text-[var(--text-primary)]">
+                      {formatCurrency(loan.requestedAmount)} &middot; {loan.requestedTermMonths} months
+                    </p>
+                    {loan.purpose && <p className="text-xs text-[var(--text-muted)] truncate">{loan.purpose}</p>}
                   </div>
-                ))}
-            </div>
-          )}
+                  <LoanReviewDialog
+                    loanId={loan.id}
+                    circleId={circleId}
+                    actorUserId={user.id}
+                    memberName={loan.memberName}
+                    requestedAmount={loan.requestedAmount}
+                    requestedTermMonths={loan.requestedTermMonths}
+                    purpose={loan.purpose}
+                    fixedRatePct={fixedRatePct}
+                    maxAmount={loan.maxAmount}
+                    maxTermMonths={maxTermMonths}
+                  />
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>
