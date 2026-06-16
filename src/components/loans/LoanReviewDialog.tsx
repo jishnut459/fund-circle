@@ -89,16 +89,18 @@ export default function LoanReviewDialog({
           Review
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Review Loan Request{memberName ? ` — ${memberName}` : ""}</DialogTitle>
-          <DialogDescription>
-            Requested {formatCurrency(requestedAmount)} over {requestedTermMonths} months
-            {purpose ? ` for "${purpose}"` : ""}.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90dvh] flex flex-col p-0 gap-0">
+        <div className="px-6 pt-6 pb-4 shrink-0">
+          <DialogHeader>
+            <DialogTitle>Review Loan Request{memberName ? ` — ${memberName}` : ""}</DialogTitle>
+            <DialogDescription>
+              Requested {formatCurrency(requestedAmount)} over {requestedTermMonths} months
+              {purpose ? ` for "${purpose}"` : ""}.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto px-6">
           <EMICalculator
             defaultAmount={requestedAmount}
             defaultTermMonths={requestedTermMonths}
@@ -110,9 +112,10 @@ export default function LoanReviewDialog({
               setApprovedTermMonths(termMonths)
             }}
           />
+        </div>
 
+        <div className="px-6 py-4 border-t border-[var(--border-light)] shrink-0 space-y-3">
           {error && <p className="text-sm text-red-600">{error}</p>}
-
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
               variant="destructive"
