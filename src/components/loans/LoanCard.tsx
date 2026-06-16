@@ -1,3 +1,4 @@
+import type React from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import LoanStatusBadge from "@/components/loans/LoanStatusBadge"
@@ -15,11 +16,20 @@ export interface LoanCardData {
   createdAt: string
 }
 
-export default function LoanCard({ circleId, loan }: { circleId: string; loan: LoanCardData }) {
+export default function LoanCard({
+  circleId,
+  loan,
+  actions,
+}: {
+  circleId: string
+  loan: LoanCardData
+  actions?: React.ReactNode
+}) {
   const progress = loan.totalDue > 0 ? formatPercentage(loan.totalPaid, loan.totalDue) : 0
   const showProgress = (loan.status === "active" || loan.status === "closed") && loan.totalDue > 0
 
   return (
+    <div>
     <Link href={`/circles/${circleId}/loans/${loan.id}`}>
       <Card className="cursor-pointer hover:shadow-[var(--shadow-card-hover)] hover:border-teal/20 transition-all active:scale-[0.99]">
         <CardContent className="p-5">
@@ -73,5 +83,7 @@ export default function LoanCard({ circleId, loan }: { circleId: string; loan: L
         </CardContent>
       </Card>
     </Link>
+    {actions && <div className="mt-2">{actions}</div>}
+    </div>
   )
 }
