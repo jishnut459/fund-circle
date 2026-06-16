@@ -4,7 +4,8 @@ import { useState } from "react"
 import { AlertTriangle, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatDate, formatOrdinal } from "@/lib/format"
-import RecordLoanPaymentDialog from "./RecordLoanPaymentDialog"
+import SubmitLoanPaymentDialog from "./SubmitLoanPaymentDialog"
+import VerifyLoanPaymentActions from "./VerifyLoanPaymentActions"
 
 export interface InstallmentRow {
   id: string
@@ -18,6 +19,14 @@ export interface InstallmentRow {
   status: string
 }
 
+export interface PendingLoanPayment {
+  id: string
+  amount: number
+  paymentType: "regular" | "prepayment" | "foreclosure"
+  prepaymentStrategy?: "reduce_emi" | "reduce_tenure" | null
+  submittedByName?: string
+}
+
 function InstallmentStatusBadge({ status }: { status: string }) {
   const labels: Record<string, string> = {
     pending: "Pending",
@@ -25,19 +34,16 @@ function InstallmentStatusBadge({ status }: { status: string }) {
     partially_paid: "Partial",
     paid: "Paid",
   }
-
   return (
     <div className="flex items-center gap-1.5">
       {status === "overdue" ? (
         <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
       ) : (
-        <span
-          className={`inline-block w-2 h-2 rounded-full ${
-            status === "paid" ? "bg-emerald-500" :
-            status === "partially_paid" ? "bg-amber-500" :
-            "bg-gray-300 dark:bg-gray-600"
-          }`}
-        />
+        <span className={`inline-block w-2 h-2 rounded-full ${
+          status === "paid" ? "bg-emerald-500" :
+          status === "partially_paid" ? "bg-amber-500" :
+          "bg-gray-300 dark:bg-gray-600"
+        }`} />
       )}
       <span className="text-xs font-medium text-[var(--text-secondary)]">
         {labels[status] ?? status}
@@ -48,14 +54,22 @@ function InstallmentStatusBadge({ status }: { status: string }) {
 
 export default function LoanInstallmentTable({
   installments,
+  loanId,
   circleId,
   actorUserId,
-  canRecordPayment,
+  isLoanOwner,
+  canManage,
+  currentEMI,
+  pendingByInstallment = {},
 }: {
   installments: InstallmentRow[]
+  loanId: string
   circleId: string
   actorUserId: string
-  canRecordPayment: boolean
+  isLoanOwner: boolean
+  canManage: boolean
+  currentEMI: number
+  pendingByInstallment?: Record<string, PendingLoanPayment>
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -80,6 +94,8 @@ export default function LoanInstallmentTable({
     <div className="space-y-2">
       {installments.map((i) => {
         const isExpanded = expandedId === i.id
+        const pending = pendingByInstallment[i.id]
+        const canSubmit = isLoanOwner && i.status !== "paid" && !pending
 
         return (
           <div
@@ -113,18 +129,31 @@ export default function LoanInstallmentTable({
                   isExpanded && "rotate-180"
                 )}
               />
-              {canRecordPayment && (
-                <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-                  <RecordLoanPaymentDialog
-                    loanInstallmentId={i.id}
+              <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
+                {canManage && pending && (
+                  <VerifyLoanPaymentActions
+                    paymentId={pending.id}
                     circleId={circleId}
-                    actorUserId={actorUserId}
+                    userId={actorUserId}
+                    amount={pending.amount}
+                    paymentType={pending.paymentType}
+                    prepaymentStrategy={pending.prepaymentStrategy}
+                    submittedByName={pending.submittedByName}
+                  />
+                )}
+                {canSubmit && (
+                  <SubmitLoanPaymentDialog
+                    installmentId={i.id}
+                    loanId={loanId}
+                    circleId={circleId}
+                    userId={actorUserId}
                     installmentNumber={i.installmentNumber}
                     totalDue={i.totalDue}
                     paidAmount={i.paidAmount}
+                    currentEMI={currentEMI}
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
             {isExpanded && (
               <div className="px-3 pb-3 pt-0 border-t border-[var(--border-light)] mt-0">
@@ -135,22 +164,22 @@ export default function LoanInstallmentTable({
                   </div>
                   <div>
                     <span className="text-[var(--text-muted)]">Principal: </span>
-                    <span className="font-tabular text-[var(--text-primary)]">
-                      {formatCurrency(i.principalComponent)}
-                    </span>
+                    <span className="font-tabular text-[var(--text-primary)]">{formatCurrency(i.principalComponent)}</span>
                   </div>
                   <div>
                     <span className="text-[var(--text-muted)]">Interest: </span>
-                    <span className="font-tabular text-[var(--text-primary)]">
-                      {formatCurrency(i.interestComponent)}
-                    </span>
+                    <span className="font-tabular text-[var(--text-primary)]">{formatCurrency(i.interestComponent)}</span>
                   </div>
                   {i.lateFeeApplied > 0 && (
                     <div>
                       <span className="text-[var(--text-muted)]">Late fee: </span>
-                      <span className="font-tabular text-amber-600 dark:text-amber-400">
-                        {formatCurrency(i.lateFeeApplied)}
-                      </span>
+                      <span className="font-tabular text-amber-600 dark:text-amber-400">{formatCurrency(i.lateFeeApplied)}</span>
+                    </div>
+                  )}
+                  {pending && (
+                    <div>
+                      <span className="text-amber-600 font-medium">Pending: </span>
+                      <span className="font-tabular text-amber-700">{formatCurrency(pending.amount)} awaiting verification</span>
                     </div>
                   )}
                 </div>

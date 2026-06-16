@@ -3,11 +3,12 @@
 import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import ContributionStatusBadge from "./ContributionStatusBadge"
-import RecordPaymentDialog from "./RecordPaymentDialog"
+import EditPaymentDialog from "./EditPaymentDialog"
+import SubmitPaymentDialog from "./SubmitPaymentDialog"
+import VerifyPaymentActions from "./VerifyPaymentActions"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatISODate } from "@/lib/format"
 import { ChevronDown } from "lucide-react"
-import EditPaymentDialog from "./EditPaymentDialog"
 
 interface Contribution {
   id: string
@@ -21,12 +22,19 @@ interface Contribution {
   status: string
 }
 
+export interface PendingPayment {
+  id: string
+  amount: number
+  submittedByName?: string
+}
+
 export default function ContributionTable({
   contributions,
   circleId,
   currentUserId,
   canEdit,
   cycleClosed,
+  pendingPayments = {},
 }: {
   contributions: Contribution[]
   contributionCycleId?: string
@@ -35,6 +43,7 @@ export default function ContributionTable({
   currentUserId: string
   canEdit: boolean
   cycleClosed: boolean
+  pendingPayments?: Record<string, PendingPayment>
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -59,6 +68,8 @@ export default function ContributionTable({
     <div className="space-y-2">
       {contributions.map((c) => {
         const isExpanded = expandedId === c.id
+        const pending = pendingPayments[c.id]
+        const isOwnContribution = c.userId === currentUserId
 
         return (
           <div
@@ -77,9 +88,7 @@ export default function ContributionTable({
                 <AvatarFallback>{c.userName.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm text-[var(--text-primary)] truncate">
-                  {c.userName}
-                </p>
+                <p className="font-medium text-sm text-[var(--text-primary)] truncate">{c.userName}</p>
                 <ContributionStatusBadge status={c.status} />
               </div>
               <div className="text-right shrink-0">
@@ -96,24 +105,36 @@ export default function ContributionTable({
                   isExpanded && "rotate-180"
                 )}
               />
-              {canEdit && !cycleClosed && (
+              {!cycleClosed && (
                 <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
-                  <EditPaymentDialog
-                    contributionId={c.id}
-                    circleId={circleId}
-                    userId={currentUserId}
-                    memberName={c.userName}
-                    expectedAmount={c.expectedAmount}
-                    currentPaid={c.paidAmount}
-                  />
-                  <RecordPaymentDialog
-                    contributionId={c.id}
-                    circleId={circleId}
-                    userId={currentUserId}
-                    memberName={c.userName}
-                    expectedAmount={c.expectedAmount}
-                    currentPaid={c.paidAmount}
-                  />
+                  {canEdit && pending && (
+                    <VerifyPaymentActions
+                      paymentId={pending.id}
+                      circleId={circleId}
+                      userId={currentUserId}
+                      amount={pending.amount}
+                      submittedByName={pending.submittedByName}
+                    />
+                  )}
+                  {canEdit && (
+                    <EditPaymentDialog
+                      contributionId={c.id}
+                      circleId={circleId}
+                      userId={currentUserId}
+                      memberName={c.userName}
+                      expectedAmount={c.expectedAmount}
+                      currentPaid={c.paidAmount}
+                    />
+                  )}
+                  {isOwnContribution && !pending && (
+                    <SubmitPaymentDialog
+                      contributionId={c.id}
+                      circleId={circleId}
+                      userId={currentUserId}
+                      expectedAmount={c.expectedAmount}
+                      currentPaid={c.paidAmount}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -128,16 +149,18 @@ export default function ContributionTable({
                   </div>
                   <div>
                     <span className="text-[var(--text-muted)]">Date: </span>
-                    <span className="text-[var(--text-primary)]">
-                      {formatISODate(c.paymentDate ?? "")}
-                    </span>
+                    <span className="text-[var(--text-primary)]">{formatISODate(c.paymentDate ?? "")}</span>
                   </div>
                   <div>
                     <span className="text-[var(--text-muted)]">Notes: </span>
-                    <span className="text-[var(--text-primary)]">
-                      {c.notes ?? "—"}
-                    </span>
+                    <span className="text-[var(--text-primary)]">{c.notes ?? "—"}</span>
                   </div>
+                  {pending && (
+                    <div>
+                      <span className="text-amber-600 font-medium">Pending: </span>
+                      <span className="font-tabular text-amber-700">{formatCurrency(pending.amount)} awaiting verification</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

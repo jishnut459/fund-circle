@@ -3,11 +3,14 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
-import { calculateEMI } from "@/lib/loans"
+import { calculateAccruedInterest, calculateEMI, calculateOutstandingPrincipal } from "@/lib/loans"
+import { toISODate } from "@/lib/cycles"
 import { Card, CardContent } from "@/components/ui/card"
 import LoanStatusBadge from "@/components/loans/LoanStatusBadge"
-import LoanInstallmentTable, { type InstallmentRow } from "@/components/loans/LoanInstallmentTable"
+import LoanInstallmentTable, { type InstallmentRow, type PendingLoanPayment } from "@/components/loans/LoanInstallmentTable"
 import CancelLoanRequestButton from "@/components/loans/CancelLoanRequestButton"
+import ForeclosureDialog from "@/components/loans/ForeclosureDialog"
+import VerifyLoanPaymentActions from "@/components/loans/VerifyLoanPaymentActions"
 import { formatCurrency, formatDate, formatPercentage } from "@/lib/format"
 import { ArrowLeft } from "lucide-react"
 
@@ -44,8 +47,10 @@ export default async function LoanDetailPage({
   const canManage = isAdminOrOwner(membership.role)
   if (loan.user_id !== user.id && !canManage) redirect(`/circles/${circleId}/loans`)
 
+  const isLoanOwner = loan.user_id === user.id
+
   let memberName: string | null = null
-  if (loan.user_id !== user.id) {
+  if (!isLoanOwner) {
     const { data: profile } = await supabase.from("profiles").select("name").eq("id", loan.user_id).single()
     memberName = profile?.name ?? null
   }
@@ -68,6 +73,61 @@ export default async function LoanDetailPage({
     status: i.status,
   }))
 
+  // Fetch pending payments for this loan (regular installment-level)
+  const installmentIds = installments.map((i) => i.id)
+  const [{ data: pendingInstallmentPayments }, { data: pendingLoanLevelPayments }] = await Promise.all([
+    installmentIds.length > 0
+      ? supabase
+          .from("loan_payments")
+          .select("id, loan_installment_id, amount, payment_type, prepayment_strategy, submitted_by")
+          .in("loan_installment_id", installmentIds)
+          .eq("status", "pending")
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("loan_payments")
+      .select("id, loan_id, amount, payment_type, prepayment_strategy, submitted_by")
+      .eq("loan_id", loanId)
+      .eq("status", "pending")
+      .in("payment_type", ["prepayment", "foreclosure"]),
+  ])
+
+  // Resolve submitter names
+  const submitterIds = [
+    ...new Set([
+      ...(pendingInstallmentPayments ?? []).map((p) => p.submitted_by),
+      ...(pendingLoanLevelPayments ?? []).map((p) => p.submitted_by),
+    ].filter(Boolean) as string[])
+  ]
+  const { data: submitterProfiles } = submitterIds.length > 0
+    ? await supabase.from("profiles").select("id, name").in("id", submitterIds)
+    : { data: [] }
+  const submitterMap = new Map((submitterProfiles ?? []).map((p) => [p.id, p.name]))
+
+  const pendingByInstallment: Record<string, PendingLoanPayment> = {}
+  for (const p of pendingInstallmentPayments ?? []) {
+    if (p.loan_installment_id) {
+      pendingByInstallment[p.loan_installment_id] = {
+        id: p.id,
+        amount: Number(p.amount),
+        paymentType: p.payment_type as "regular",
+        submittedByName: p.submitted_by ? submitterMap.get(p.submitted_by) ?? undefined : undefined,
+      }
+    }
+  }
+
+  const pendingLoanLevel = (pendingLoanLevelPayments ?? [])[0] ?? null
+  const pendingLoanLevelEntry: PendingLoanPayment | null = pendingLoanLevel
+    ? {
+        id: pendingLoanLevel.id,
+        amount: Number(pendingLoanLevel.amount),
+        paymentType: pendingLoanLevel.payment_type as "prepayment" | "foreclosure",
+        prepaymentStrategy: pendingLoanLevel.prepayment_strategy as "reduce_emi" | "reduce_tenure" | null,
+        submittedByName: pendingLoanLevel.submitted_by
+          ? submitterMap.get(pendingLoanLevel.submitted_by) ?? undefined
+          : undefined,
+      }
+    : null
+
   const amount = Number(loan.approved_amount ?? loan.requested_amount)
   const termMonths = loan.approved_term_months ?? loan.requested_term_months
   const totalDue = installments.reduce((sum, i) => sum + i.totalDue, 0)
@@ -79,8 +139,15 @@ export default async function LoanDetailPage({
       ? calculateEMI(amount, Number(loan.interest_rate_pct), termMonths)
       : undefined
 
-  const canRecordPayment = canManage && loan.status === "active"
-  const canCancelRequest = loan.user_id === user.id && loan.status === "pending_request"
+  const todayIso = toISODate(new Date())
+  const outstandingPrincipal = calculateOutstandingPrincipal(installments)
+  const accruedInterest = calculateAccruedInterest(
+    installments.map((i) => ({ ...i, dueDate: i.dueDate })),
+    todayIso
+  )
+
+  const canCancelRequest = isLoanOwner && loan.status === "pending_request"
+  const canForeclose = isLoanOwner && loan.status === "active" && !pendingLoanLevelEntry
 
   return (
     <div className="space-y-6">
@@ -92,9 +159,20 @@ export default async function LoanDetailPage({
           <ArrowLeft className="h-4 w-4" />
           Back to Loans
         </Link>
-        {canCancelRequest && (
-          <CancelLoanRequestButton loanId={loanId} userId={user.id} circleId={circleId} />
-        )}
+        <div className="flex items-center gap-2">
+          {canCancelRequest && (
+            <CancelLoanRequestButton loanId={loanId} userId={user.id} circleId={circleId} />
+          )}
+          {canForeclose && (
+            <ForeclosureDialog
+              loanId={loanId}
+              circleId={circleId}
+              userId={user.id}
+              outstandingPrincipal={outstandingPrincipal}
+              accruedInterest={accruedInterest}
+            />
+          )}
+        </div>
       </div>
 
       <Card>
@@ -152,13 +230,51 @@ export default async function LoanDetailPage({
         </CardContent>
       </Card>
 
+      {/* Pending prepayment or foreclosure (loan-level) — admin verification */}
+      {canManage && pendingLoanLevelEntry && (
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800">
+          <div className="flex-1 text-sm text-amber-800 dark:text-amber-200">
+            <span className="font-medium capitalize">{pendingLoanLevelEntry.paymentType}</span> of{" "}
+            <span className="font-tabular font-semibold">{formatCurrency(pendingLoanLevelEntry.amount)}</span>{" "}
+            pending verification
+            {pendingLoanLevelEntry.prepaymentStrategy && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">
+                · {pendingLoanLevelEntry.prepaymentStrategy === "reduce_emi" ? "Reduce EMI" : "Reduce Tenure"}
+              </span>
+            )}
+          </div>
+          <VerifyLoanPaymentActions
+            paymentId={pendingLoanLevelEntry.id}
+            circleId={circleId}
+            userId={user.id}
+            amount={pendingLoanLevelEntry.amount}
+            paymentType={pendingLoanLevelEntry.paymentType}
+            prepaymentStrategy={pendingLoanLevelEntry.prepaymentStrategy}
+            submittedByName={pendingLoanLevelEntry.submittedByName}
+          />
+        </div>
+      )}
+
+      {/* Pending loan-level payment visible to loan owner */}
+      {!canManage && pendingLoanLevelEntry && (
+        <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-200">
+          Your <span className="font-medium capitalize">{pendingLoanLevelEntry.paymentType}</span> of{" "}
+          <span className="font-tabular font-semibold">{formatCurrency(pendingLoanLevelEntry.amount)}</span>{" "}
+          is pending admin verification.
+        </div>
+      )}
+
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">Repayment Schedule</h3>
         <LoanInstallmentTable
           installments={installments}
+          loanId={loanId}
           circleId={circleId}
           actorUserId={user.id}
-          canRecordPayment={canRecordPayment}
+          isLoanOwner={isLoanOwner}
+          canManage={canManage}
+          currentEMI={emi ?? 0}
+          pendingByInstallment={pendingByInstallment}
         />
       </div>
     </div>

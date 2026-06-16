@@ -58,14 +58,36 @@ export default async function CycleDetailPage({
     .select("id, user_id, expected_amount, paid_amount, payment_date, notes, status")
     .eq("contribution_cycle_id", cycleId)
 
+  const contribIds = (rawContribs ?? []).map((c) => c.id)
   const userIds = [...new Set((rawContribs ?? []).map((c) => c.user_id))]
 
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, name, avatar_url")
-    .in("id", userIds.length > 0 ? userIds : ["none"])
+  const [{ data: profiles }, { data: rawPending }] = await Promise.all([
+    supabase.from("profiles").select("id, name, avatar_url").in("id", userIds.length > 0 ? userIds : ["none"]),
+    contribIds.length > 0
+      ? supabase
+          .from("contribution_payments")
+          .select("id, contribution_id, amount, submitted_by")
+          .in("contribution_id", contribIds)
+          .eq("status", "pending")
+      : Promise.resolve({ data: [] }),
+  ])
 
   const profileMap = new Map(profiles?.map((p) => [p.id, p]) ?? [])
+
+  const submitterIds = [...new Set((rawPending ?? []).map((p) => p.submitted_by).filter(Boolean) as string[])]
+  const { data: submitterProfiles } = submitterIds.length > 0
+    ? await supabase.from("profiles").select("id, name").in("id", submitterIds)
+    : { data: [] }
+  const submitterMap = new Map((submitterProfiles ?? []).map((p) => [p.id, p.name]))
+
+  const pendingPayments: Record<string, { id: string; amount: number; submittedByName?: string }> = {}
+  for (const p of rawPending ?? []) {
+    pendingPayments[p.contribution_id] = {
+      id: p.id,
+      amount: Number(p.amount),
+      submittedByName: p.submitted_by ? submitterMap.get(p.submitted_by) ?? undefined : undefined,
+    }
+  }
 
   const contributions = (rawContribs ?? []).map((c) => {
     const profile = profileMap.get(c.user_id)
@@ -165,6 +187,7 @@ export default async function CycleDetailPage({
         currentUserId={user.id}
         canEdit={canEdit}
         cycleClosed={cycleClosed}
+        pendingPayments={pendingPayments}
       />
     </div>
   )

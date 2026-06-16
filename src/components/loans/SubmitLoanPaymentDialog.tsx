@@ -1,0 +1,174 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Check } from "lucide-react"
+import { submitLoanPayment, submitPrepayment } from "@/lib/actions"
+import { formatCurrency } from "@/lib/format"
+
+export default function SubmitLoanPaymentDialog({
+  installmentId,
+  loanId,
+  circleId,
+  userId,
+  installmentNumber,
+  totalDue,
+  paidAmount,
+  currentEMI,
+}: {
+  installmentId: string
+  loanId: string
+  circleId: string
+  userId: string
+  installmentNumber: number
+  totalDue: number
+  paidAmount: number
+  currentEMI: number
+}) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState("")
+  const [notes, setNotes] = useState("")
+  const [strategy, setStrategy] = useState<"reduce_emi" | "reduce_tenure">("reduce_tenure")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const remaining = totalDue - paidAmount
+  const isPrepayment = Number(amount) > remaining
+
+  const handleOpenChange = (value: boolean) => {
+    setOpen(value)
+    if (value) {
+      setAmount(remaining > 0 ? String(remaining) : "")
+      setNotes("")
+      setError("")
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amt = Number(amount)
+    if (!amt || amt <= 0) return
+    setLoading(true)
+    setError("")
+
+    let result
+    if (isPrepayment) {
+      result = await submitPrepayment(loanId, amt, strategy, notes, userId, circleId)
+    } else {
+      result = await submitLoanPayment(installmentId, amt, notes, userId, circleId)
+    }
+
+    setLoading(false)
+    if (!result.success) { setError(result.error); return }
+    toast.success(
+      isPrepayment
+        ? `Prepayment of ${formatCurrency(amt)} submitted — awaiting admin verification`
+        : `Payment of ${formatCurrency(amt)} submitted for installment #${installmentNumber} — awaiting admin verification`
+    )
+    setOpen(false)
+    router.refresh()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="I've paid">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--border-color)] text-[var(--text-muted)] hover:border-teal hover:bg-teal-50 hover:text-teal transition-colors">
+            <Check className="h-3 w-3" />
+          </div>
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Submit EMI Payment — Installment #{installmentNumber}</DialogTitle>
+          <DialogDescription>
+            {isPrepayment
+              ? "You're paying more than the EMI amount. The extra will be applied to your principal."
+              : "Submit your payment details. An admin will verify and confirm it."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5 p-3 rounded-xl bg-[var(--border-light)]">
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--text-muted)]">Total Due</span>
+              <span className="font-tabular font-medium text-[var(--text-primary)]">{formatCurrency(totalDue)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--text-muted)]">Paid so far</span>
+              <span className="font-tabular text-[var(--text-primary)]">{formatCurrency(paidAmount)}</span>
+            </div>
+            <div className="flex justify-between text-sm pt-1.5 border-t border-[var(--border-color)]">
+              <span className="font-medium text-[var(--text-primary)]">Remaining</span>
+              <span className="font-tabular font-semibold text-teal">{formatCurrency(Math.max(0, remaining))}</span>
+            </div>
+          </div>
+
+          {remaining > 0 && amount !== String(remaining) && (
+            <button type="button" onClick={() => setAmount(String(remaining))}
+              className="text-xs text-teal hover:text-teal-dark font-medium transition-colors">
+              Use remaining amount ({formatCurrency(remaining)})
+            </button>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="slp-amount">Amount paid (₹)</Label>
+            <Input id="slp-amount" type="number" step="0.01" min="0" value={amount}
+              onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.select()}
+              placeholder={String(remaining)} disabled={loading} autoFocus />
+          </div>
+
+          {isPrepayment && (
+            <div className="space-y-2 p-3 rounded-xl border border-teal/30 bg-teal/5">
+              <p className="text-xs font-semibold text-teal">Prepayment — choose what to do with the extra</p>
+              <div className="space-y-2">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" name="strategy" value="reduce_tenure"
+                    checked={strategy === "reduce_tenure"}
+                    onChange={() => setStrategy("reduce_tenure")}
+                    className="mt-0.5 accent-teal" />
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Reduce tenure</p>
+                    <p className="text-xs text-[var(--text-muted)]">Keep same EMI (₹{currentEMI.toFixed(0)}), close the loan sooner</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" name="strategy" value="reduce_emi"
+                    checked={strategy === "reduce_emi"}
+                    onChange={() => setStrategy("reduce_emi")}
+                    className="mt-0.5 accent-teal" />
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Reduce EMI</p>
+                    <p className="text-xs text-[var(--text-muted)]">Keep same number of months, pay a lower EMI going forward</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="slp-notes">Payment reference (optional)</Label>
+            <Input id="slp-notes" value={notes} onChange={(e) => setNotes(e.target.value)}
+              placeholder="UPI ref: 123456789" disabled={loading} />
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <Button type="submit" disabled={loading || !amount || Number(amount) <= 0} className="w-full">
+            {loading ? "Submitting..." : isPrepayment ? "Submit Prepayment" : "Submit for Verification"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

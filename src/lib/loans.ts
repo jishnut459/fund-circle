@@ -111,3 +111,48 @@ export function computeEligibility(params: {
 export function computeAssetsValue(totalContributionsCollected: number, assetAllocationPct: number): number {
   return roundCurrency(totalContributionsCollected * (assetAllocationPct / 100))
 }
+
+/**
+ * Sum of principal_component across installments that are not fully paid.
+ * Used to determine the outstanding balance for prepayment and foreclosure.
+ */
+export function calculateOutstandingPrincipal(
+  installments: { principalComponent: number; paidAmount: number; totalDue: number }[]
+): number {
+  return roundCurrency(
+    installments
+      .filter((i) => i.paidAmount < i.totalDue)
+      .reduce((sum, i) => sum + i.principalComponent, 0)
+  )
+}
+
+/**
+ * Number of full months needed to pay off a principal at the given EMI.
+ * Returns the count of full-EMI installments; the final installment will
+ * be smaller (just the remaining balance + interest on it).
+ * Used by the reduce_tenure prepayment strategy.
+ */
+export function monthsToPayOff(principal: number, monthlyRate: number, emi: number): number {
+  if (principal <= 0) return 0
+  if (monthlyRate === 0) return Math.ceil(principal / emi)
+  // Solve n = -log(1 - r*P/EMI) / log(1+r)
+  const ratio = (monthlyRate * principal) / emi
+  if (ratio >= 1) return 999 // EMI too small to cover interest — shouldn't happen
+  return Math.ceil(-Math.log(1 - ratio) / Math.log(1 + monthlyRate))
+}
+
+/**
+ * Accrued interest to today on the outstanding principal.
+ * Covers principal components of overdue/current unpaid installments only —
+ * future interest is NOT charged on early settlement.
+ */
+export function calculateAccruedInterest(
+  installments: { interestComponent: number; dueDate: string; paidAmount: number; totalDue: number }[],
+  todayIso: string
+): number {
+  return roundCurrency(
+    installments
+      .filter((i) => i.paidAmount < i.totalDue && i.dueDate <= todayIso)
+      .reduce((sum, i) => sum + i.interestComponent, 0)
+  )
+}
