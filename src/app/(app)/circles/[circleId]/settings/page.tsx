@@ -193,25 +193,6 @@ export default async function CircleSettingsPage({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle>Plan</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--border-light)]">
-                <div>
-                  <p className="font-semibold text-[var(--text-primary)] capitalize">{circle.subscription_plan} Plan</p>
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    {memberCount} member{memberCount !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <Badge variant="success">{circle.subscription_plan}</Badge>
-              </div>
-              <p className="text-xs text-[var(--text-muted)]">
-                Upgrade and payment integration is not available in this version.
-              </p>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
@@ -248,6 +229,27 @@ export default async function CircleSettingsPage({
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Full-width: Plan */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>Plan</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--border-light)]">
+            <div>
+              <p className="font-semibold text-[var(--text-primary)] capitalize">{circle.subscription_plan} Plan</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {memberCount} member{memberCount !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <Badge variant="success">{circle.subscription_plan}</Badge>
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">
+            Upgrade and payment integration is not available in this version.
+          </p>
         </CardContent>
       </Card>
     </div>
