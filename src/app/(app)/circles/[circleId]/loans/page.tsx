@@ -12,7 +12,6 @@ import LoanCard, { type LoanCardData } from "@/components/loans/LoanCard"
 import EligibilityWidget from "@/components/loans/EligibilityWidget"
 import CancelLoanRequestButton from "@/components/loans/CancelLoanRequestButton"
 import { formatCurrency } from "@/lib/format"
-import { Badge } from "@/components/ui/badge"
 import { HandCoins, Plus } from "lucide-react"
 
 export default async function LoansPage({ params }: { params: Promise<{ circleId: string }> }) {
@@ -158,41 +157,62 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
         </div>
       </div>
 
+      {/* Eligibility + active loans */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <EligibilityWidget circleId={circleId} userId={user.id} />
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">My Loans</h3>
-          {myLoanCards.length === 0 ? (
+          {myLoanCards.filter((l) => l.status === "active").length === 0 ? (
             <EmptyState
               icon={HandCoins}
-              title="No loans yet"
+              title="No active loans"
               description="Request a loan against your contributions whenever you need it."
-              action={{ label: "Request Loan", href: `/circles/${circleId}/loans/new` }}
+              action={canRequestLoan ? { label: "Request Loan", href: `/circles/${circleId}/loans/new` } : undefined}
             />
           ) : (
             <div className="space-y-3">
-              {myLoanCards.map((loan) => (
-                <LoanCard
-                  key={loan.id}
-                  circleId={circleId}
-                  loan={loan}
-                  actions={
-                    loan.status === "pending_request" ? (
-                      <CancelLoanRequestButton loanId={loan.id} userId={user.id} circleId={circleId} />
-                    ) : undefined
-                  }
-                />
-              ))}
+              {myLoanCards
+                .filter((l) => l.status === "active")
+                .map((loan) => (
+                  <LoanCard key={loan.id} circleId={circleId} loan={loan} />
+                ))}
             </div>
           )}
         </div>
       </div>
 
+      {/* Own pending request — visible to all members */}
+      {myLoanCards.some((l) => l.status === "pending_request") && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">My Pending Request</h3>
+          <div className="space-y-3">
+            {myLoanCards
+              .filter((l) => l.status === "pending_request")
+              .map((loan) => (
+                <div
+                  key={loan.id}
+                  className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[var(--text-primary)] truncate">
+                      {formatCurrency(loan.amount)} &middot; {loan.termMonths} months
+                    </p>
+                    {loan.purpose && <p className="text-xs text-[var(--text-muted)] truncate">{loan.purpose}</p>}
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">Submitted {loan.createdAt ? new Date(loan.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""} · awaiting admin review</p>
+                  </div>
+                  <CancelLoanRequestButton loanId={loan.id} userId={user.id} circleId={circleId} />
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Admin: other members' pending requests */}
       {isAdminOrOwner(membership.role) && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">Pending Requests</h3>
-          {pendingRequests.length === 0 ? (
+          {pendingRequests.filter((l) => l.userId !== user.id).length === 0 ? (
             <EmptyState
               icon={HandCoins}
               title="No pending requests"
@@ -200,9 +220,9 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
             />
           ) : (
             <div className="space-y-3">
-              {pendingRequests.map((loan) => {
-                const isOwnLoan = loan.userId === user.id
-                return (
+              {pendingRequests
+                .filter((l) => l.userId !== user.id)
+                .map((loan) => (
                   <div
                     key={loan.id}
                     className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-3"
@@ -214,25 +234,20 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
                       </p>
                       {loan.purpose && <p className="text-xs text-[var(--text-muted)] truncate">{loan.purpose}</p>}
                     </div>
-                    {isOwnLoan ? (
-                      <Badge variant="warning">Awaiting review</Badge>
-                    ) : (
-                      <LoanReviewDialog
-                        loanId={loan.id}
-                        circleId={circleId}
-                        actorUserId={user.id}
-                        memberName={loan.memberName}
-                        requestedAmount={loan.requestedAmount}
-                        requestedTermMonths={loan.requestedTermMonths}
-                        purpose={loan.purpose}
-                        fixedRatePct={fixedRatePct}
-                        maxAmount={loan.maxAmount}
-                        maxTermMonths={maxTermMonths}
-                      />
-                    )}
+                    <LoanReviewDialog
+                      loanId={loan.id}
+                      circleId={circleId}
+                      actorUserId={user.id}
+                      memberName={loan.memberName}
+                      requestedAmount={loan.requestedAmount}
+                      requestedTermMonths={loan.requestedTermMonths}
+                      purpose={loan.purpose}
+                      fixedRatePct={fixedRatePct}
+                      maxAmount={loan.maxAmount}
+                      maxTermMonths={maxTermMonths}
+                    />
                   </div>
-                )
-              })}
+                ))}
             </div>
           )}
         </div>
