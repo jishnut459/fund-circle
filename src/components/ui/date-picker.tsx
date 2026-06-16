@@ -2,6 +2,7 @@
 
 import ReactDatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
+import "@/styles/datepicker-overrides.css"
 import { parse, isValid } from "date-fns"
 
 interface DatePickerProps {
