@@ -43,7 +43,7 @@ export default function WizardStepper({ currentStep }: { currentStep: number }) 
 
             {/* Connector — mt-[18px] centers it on the 36px (h-9) circle */}
             {i < STEPS.length - 1 && (
-              <div className="flex-1 h-px mt-[18px] mx-2 bg-[var(--border-color)]">
+              <div className="flex-1 h-0.5 mt-[17px] mx-1 bg-[var(--border-color)]">
                 <div className={cn("h-full bg-teal transition-all duration-300", done ? "w-full" : "w-0")} />
               </div>
             )}
