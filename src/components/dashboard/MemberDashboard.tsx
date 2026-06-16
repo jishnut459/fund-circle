@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge, type BadgeProps } from "@/components/ui/badge"
-import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle, TrendingUp, HandCoins, Landmark, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
+import { Banknote, Users, Repeat, CheckCircle2, Clock, Circle, TrendingUp, HandCoins, Landmark, Wallet, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { formatCurrency, formatISODate } from "@/lib/format"
@@ -137,53 +137,48 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
       />
 
       {currentCycle ? (
-        <Card className="mb-8">
-          <CardContent className="p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-3 mb-5">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center shrink-0">
-                  <Wallet className="h-5 w-5 text-teal" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate">
-                      {currentCycle.label}
-                    </h3>
-                    <Badge variant={STATUS_BADGE[currentCycle.status] ?? "default"} className="text-[10px]">
-                      {currentCycle.status.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
+        <Card className="mb-8 overflow-hidden">
+          <CardContent className="p-0">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
+              <div>
+                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">
+                  {currentCycle.label}
+                </h3>
+                {currentCycle.dueDate && (
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    Current cycle{currentCycle.dueDate && ` · Pay by ${formatISODate(currentCycle.dueDate)}`}
+                    Due {formatISODate(currentCycle.dueDate)}
                   </p>
-                </div>
+                )}
               </div>
-              <Badge variant={progress >= 100 ? "success" : "default"} className="text-xs shrink-0 font-tabular">
-                {progress}%
+              <Badge variant={STATUS_BADGE[currentCycle.status] ?? "default"} className="text-[10px] shrink-0 mt-0.5">
+                {currentCycle.status.replace(/_/g, " ")}
               </Badge>
             </div>
 
-            <div className="mb-4">
-              <p className="text-3xl font-bold font-tabular text-[var(--text-primary)]">
-                {formatCurrency(currentCycle.paidAmount)}
-              </p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {/* Amount — the hero */}
+            <div className="px-5 pb-4 sm:px-6">
+              <div className="flex items-end justify-between gap-2 mb-1">
+                <p className="text-5xl font-bold font-tabular text-[var(--text-primary)] leading-none">
+                  {formatCurrency(currentCycle.paidAmount)}
+                </p>
+                <p className="text-xl font-bold font-tabular text-teal mb-0.5">
+                  {progress}%
+                </p>
+              </div>
+              <p className="text-sm text-[var(--text-muted)] mt-2 mb-4">
                 of {formatCurrency(currentCycle.expectedAmount)} expected
               </p>
+              <div className="w-full h-2 bg-[var(--border-light)] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${STATUS_BAR_COLOR[currentCycle.status] ?? STATUS_BAR_COLOR.unpaid}`}
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                />
+              </div>
             </div>
 
-            <div className="w-full h-2.5 bg-[var(--border-light)] rounded-full overflow-hidden mb-5">
-              <div
-                className={`h-full rounded-full transition-all ${STATUS_BAR_COLOR[currentCycle.status] ?? STATUS_BAR_COLOR.unpaid}`}
-                style={{ width: `${Math.min(progress, 100)}%` }}
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-4 border-t border-[var(--border-light)] text-xs text-[var(--text-muted)]">
-              <span className="flex items-center gap-1.5">
-                <PiggyBank className="h-3.5 w-3.5" />
-                {totalPaid > 0 ? `${formatCurrency(totalPaid)} paid all-time` : "No payments yet"}
-              </span>
+            {/* Footer meta */}
+            <div className="border-t border-[var(--border-light)] px-5 py-3 sm:px-6 flex items-center gap-4 flex-wrap text-xs text-[var(--text-muted)]">
               <span className="flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5" />
                 {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
@@ -192,37 +187,22 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
                 <Repeat className="h-3.5 w-3.5" />
                 {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
               </span>
+              {totalPaid > 0 && (
+                <span className="ml-auto font-medium text-[var(--text-secondary)]">
+                  {formatCurrency(totalPaid)} paid all-time
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card className="mb-8">
           <CardContent className="p-5 sm:p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center shrink-0">
-                <Wallet className="h-5 w-5 text-teal" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">No active cycle</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  Your contributions will show up here once a cycle starts.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-4 border-t border-[var(--border-light)] text-xs text-[var(--text-muted)]">
-              <span className="flex items-center gap-1.5">
-                <PiggyBank className="h-3.5 w-3.5" />
-                {totalPaid > 0 ? `${formatCurrency(totalPaid)} paid all-time` : "No payments yet"}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" />
-                {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Repeat className="h-3.5 w-3.5" />
-                {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
-              </span>
-            </div>
+            <EmptyState
+              icon={Banknote}
+              title="No active cycle"
+              description="Your contributions will show up here once a cycle starts."
+            />
           </CardContent>
         </Card>
       )}
