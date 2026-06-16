@@ -54,7 +54,7 @@ export default async function CircleLayout({
 
   return (
     <AppShell currentUser={currentUser}>
-      <div className="sticky top-0 z-10 bg-[var(--bg-page)] pb-4 -mt-4 pt-4">
+      <div className="sticky top-0 z-10 bg-[var(--bg-page)] -mt-4 md:-mt-6 lg:-mt-8 pt-4 md:pt-6 lg:pt-8 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
         <Link
           href="/circles"
           className="inline-flex items-center gap-1.5 text-sm text-teal hover:text-teal-700 font-medium mb-3 transition-colors"
