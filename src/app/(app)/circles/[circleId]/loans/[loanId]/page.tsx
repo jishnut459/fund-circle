@@ -7,6 +7,7 @@ import { calculateEMI } from "@/lib/loans"
 import { Card, CardContent } from "@/components/ui/card"
 import LoanStatusBadge from "@/components/loans/LoanStatusBadge"
 import LoanInstallmentTable, { type InstallmentRow } from "@/components/loans/LoanInstallmentTable"
+import CancelLoanRequestButton from "@/components/loans/CancelLoanRequestButton"
 import { formatCurrency, formatDate, formatPercentage } from "@/lib/format"
 import { ArrowLeft } from "lucide-react"
 
@@ -79,16 +80,22 @@ export default async function LoanDetailPage({
       : undefined
 
   const canRecordPayment = canManage && loan.status === "active"
+  const canCancelRequest = loan.user_id === user.id && loan.status === "pending_request"
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`/circles/${circleId}/loans`}
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Loans
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href={`/circles/${circleId}/loans`}
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Loans
+        </Link>
+        {canCancelRequest && (
+          <CancelLoanRequestButton loanId={loanId} userId={user.id} circleId={circleId} />
+        )}
+      </div>
 
       <Card>
         <CardContent className="p-5 space-y-4">
