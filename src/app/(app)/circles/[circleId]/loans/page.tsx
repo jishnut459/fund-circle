@@ -143,7 +143,7 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
             action={{ label: "Request Loan", href: `/circles/${circleId}/loans/new` }}
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {myLoanCards.map((loan) => (
               <LoanCard key={loan.id} circleId={circleId} loan={loan} />
             ))}
