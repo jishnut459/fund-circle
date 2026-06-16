@@ -75,7 +75,9 @@ export default function CreateCircleWizard({ userId, userName }: { userId: strin
 
   return (
     <div className="space-y-8">
-      <WizardStepper currentStep={step} />
+      <div className="sticky top-0 z-10 bg-[var(--bg-page)] pt-1 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+        <WizardStepper currentStep={step} />
+      </div>
 
       <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-light)] p-6 shadow-[var(--shadow-card)]">
         {step === 1 && (
