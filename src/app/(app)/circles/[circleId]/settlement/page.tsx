@@ -145,7 +145,7 @@ export default async function CircleSettlementPage({
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
         Settlement &amp; Asset Log
       </h2>

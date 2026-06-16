@@ -243,7 +243,7 @@ export default function AppShell({
       <div className="flex-1 flex flex-col min-w-0">
         <MobileHeader currentUser={currentUser} />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
-          <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto">{children}</div>
+          <div className="p-4 md:p-6 lg:p-8">{children}</div>
         </main>
       </div>
       <BottomNav currentUser={currentUser} />

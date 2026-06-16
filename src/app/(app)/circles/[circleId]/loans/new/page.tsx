@@ -34,7 +34,7 @@ export default async function LoanRequestPage({ params }: { params: Promise<{ ci
   const maxTermMonths = circle.end_date ? monthsUntil(circle.end_date) : undefined
 
   return (
-    <div className="max-w-md space-y-6">
+    <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Request a Loan</h2>
         <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -42,15 +42,17 @@ export default async function LoanRequestPage({ params }: { params: Promise<{ ci
         </p>
       </div>
 
-      <EligibilityWidget circleId={circleId} userId={user.id} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <EligibilityWidget circleId={circleId} userId={user.id} />
 
-      <LoanRequestForm
-        circleId={circleId}
-        userId={user.id}
-        fixedRatePct={Number(circle.loan_interest_rate_pct)}
-        maxAmount={maxAmount}
-        maxTermMonths={maxTermMonths}
-      />
+        <LoanRequestForm
+          circleId={circleId}
+          userId={user.id}
+          fixedRatePct={Number(circle.loan_interest_rate_pct)}
+          maxAmount={maxAmount}
+          maxTermMonths={maxTermMonths}
+        />
+      </div>
     </div>
   )
 }
