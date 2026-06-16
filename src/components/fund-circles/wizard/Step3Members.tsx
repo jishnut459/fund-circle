@@ -94,7 +94,7 @@ export default function Step3Members({ creatorName, initialMembers, onNext, onBa
   return (
     <div className="space-y-6">
       <p className="text-sm text-[var(--text-muted)]">
-        Invite members to join this circle. They&apos;ll receive an email — existing Fund Circle users are added immediately.
+        Add members to invite when the circle is created. You can also do this later from the members page.
       </p>
 
       {/* Email input row */}
@@ -224,16 +224,9 @@ export default function Step3Members({ creatorName, initialMembers, onNext, onBa
         <Button variant="ghost" onClick={onBack}>
           Back
         </Button>
-        <div className="flex items-center gap-2">
-          {members.length === 0 && (
-            <Button variant="outline" onClick={() => onNext([])}>
-              Skip
-            </Button>
-          )}
-          <Button onClick={() => onNext(members)}>
-            {members.length > 0 ? `Next: Review (${members.length} member${members.length !== 1 ? "s" : ""})` : "Next: Review"}
-          </Button>
-        </div>
+        <Button onClick={() => onNext(members)}>
+          {members.length > 0 ? `Next: Review (${members.length} member${members.length !== 1 ? "s" : ""})` : "Next: Review"}
+        </Button>
       </div>
     </div>
   )

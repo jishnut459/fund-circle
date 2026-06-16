@@ -68,8 +68,6 @@ export default function Step2LoanSettings({ initialData, onNext, onBack }: Step2
     loanGraceDays: Number(loanGraceDays),
   })
 
-  const handleSkip = () => onNext(initialData)
-
   const handleNext = () => {
     if (allocationError) return
     onNext(buildData())
@@ -124,14 +122,9 @@ export default function Step2LoanSettings({ initialData, onNext, onBack }: Step2
         <Button variant="ghost" onClick={onBack}>
           Back
         </Button>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleSkip}>
-            Skip
-          </Button>
-          <Button onClick={handleNext} disabled={!!allocationError}>
-            Next: Add Members
-          </Button>
-        </div>
+        <Button onClick={handleNext} disabled={!!allocationError}>
+          Next: Add Members
+        </Button>
       </div>
     </div>
   )
