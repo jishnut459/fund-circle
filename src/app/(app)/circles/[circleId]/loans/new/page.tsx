@@ -29,6 +29,18 @@ export default async function LoanRequestPage({ params }: { params: Promise<{ ci
     .single()
   if (!circle) redirect(`/circles/${circleId}/dashboard`)
 
+  // Block if the user already has a pending or active loan
+  const { data: blockingLoan } = await supabase
+    .from("loans")
+    .select("status")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", user.id)
+    .in("status", ["pending_request", "active"])
+    .limit(1)
+    .maybeSingle()
+
+  if (blockingLoan) redirect(`/circles/${circleId}/loans`)
+
   const eligibility = await getLoanEligibility(circleId, user.id)
   const maxAmount = eligibility.success ? eligibility.data.eligibleAmount : 0
   const maxTermMonths = circle.end_date ? monthsUntil(circle.end_date) : undefined

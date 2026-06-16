@@ -71,7 +71,7 @@ export default function LoanRequestForm({ circleId, userId, fixedRatePct, maxAmo
     }
 
     toast.success("Loan request submitted")
-    router.push(`/circles/${circleId}/dashboard`)
+    router.push(`/circles/${circleId}/loans`)
     router.refresh()
   }
 

@@ -47,6 +47,14 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
+  const blockingLoan = (myLoans ?? []).find((l) => l.status === "pending_request" || l.status === "active")
+  const canRequestLoan = !blockingLoan
+  const requestBlockedReason = blockingLoan?.status === "active"
+    ? "You have an active loan. Repay it fully before requesting another."
+    : blockingLoan?.status === "pending_request"
+    ? "You have a pending request awaiting review. Cancel it first to submit a new one."
+    : undefined
+
   const myLoanIds = (myLoans ?? []).map((l) => l.id)
   const { data: myInstallments } =
     myLoanIds.length > 0
@@ -125,17 +133,29 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Loans</h2>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">Request a loan or review pending requests.</p>
         </div>
-        <Button asChild>
-          <Link href={`/circles/${circleId}/loans/new`}>
-            <Plus className="h-4 w-4" />
-            Request Loan
-          </Link>
-        </Button>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {canRequestLoan ? (
+            <Button asChild>
+              <Link href={`/circles/${circleId}/loans/new`}>
+                <Plus className="h-4 w-4" />
+                Request Loan
+              </Link>
+            </Button>
+          ) : (
+            <Button disabled>
+              <Plus className="h-4 w-4" />
+              Request Loan
+            </Button>
+          )}
+          {requestBlockedReason && (
+            <p className="text-xs text-[var(--text-muted)] text-right max-w-[220px]">{requestBlockedReason}</p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
