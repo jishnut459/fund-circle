@@ -5,6 +5,7 @@ import { getLoanEligibility } from "@/lib/actions"
 import { monthsUntil } from "@/lib/loans"
 import EligibilityWidget from "@/components/loans/EligibilityWidget"
 import LoanRequestForm from "@/components/loans/LoanRequestForm"
+import EMICalculator from "@/components/loans/EMICalculator"
 
 export default async function LoanRequestPage({ params }: { params: Promise<{ circleId: string }> }) {
   const { circleId } = await params
@@ -38,16 +39,26 @@ export default async function LoanRequestPage({ params }: { params: Promise<{ ci
       <div>
         <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Request a Loan</h2>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Choose an amount and term within your eligibility — the EMI updates as you adjust them.
+          Use the EMI calculator to explore repayment scenarios, then submit your request below.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <EligibilityWidget circleId={circleId} userId={user.id} />
+        {/* Left: eligibility + request form */}
+        <div className="space-y-6">
+          <EligibilityWidget circleId={circleId} userId={user.id} />
+          <LoanRequestForm
+            circleId={circleId}
+            userId={user.id}
+            maxAmount={maxAmount}
+            maxTermMonths={maxTermMonths}
+          />
+        </div>
 
-        <LoanRequestForm
-          circleId={circleId}
-          userId={user.id}
+        {/* Right: informational EMI calculator */}
+        <EMICalculator
+          defaultAmount={Math.min(50000, maxAmount)}
+          defaultTermMonths={maxTermMonths !== undefined ? Math.min(12, maxTermMonths) : 12}
           fixedRatePct={Number(circle.loan_interest_rate_pct)}
           maxAmount={maxAmount}
           maxTermMonths={maxTermMonths}
