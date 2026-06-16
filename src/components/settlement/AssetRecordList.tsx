@@ -152,7 +152,11 @@ export default function AssetRecordList({
       <EmptyState
         icon={Landmark}
         title="No asset records yet"
-        description="Admins can log where asset-allocated contributions were invested after each cycle."
+        description={
+          canEdit
+            ? "Use the form above to log where asset-allocated contributions are invested."
+            : "Asset allocations will appear here once the admin logs them."
+        }
       />
     )
   }

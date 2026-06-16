@@ -142,7 +142,11 @@ export default function SettlementPayoutTable({
       <EmptyState
         icon={Users}
         title="No payouts calculated yet"
-        description="Calculate the settlement above to generate member payout amounts."
+        description={
+          canManage
+            ? "Calculate the settlement above to generate member payout amounts."
+            : "Payouts will appear here once the admin finalises the settlement."
+        }
       />
     )
   }

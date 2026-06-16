@@ -75,11 +75,13 @@ export default async function CircleMembersPage({
             <AddMemberDialog circleId={circleId} currentUserId={user.id} />
           )}
         </div>
-        <EmptyState
-          icon={Users}
-          title="No members yet"
-          description="Add members to this circle to start collecting contributions."
-        />
+        {pendingInvites.length === 0 && (
+          <EmptyState
+            icon={Users}
+            title="No members yet"
+            description="Add members to this circle to start collecting contributions."
+          />
+        )}
         {canEdit && (
           <PendingInvitesList invites={pendingInvites} circleId={circleId} currentUserId={user.id} />
         )}
