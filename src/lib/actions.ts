@@ -310,6 +310,60 @@ export async function recordPayment(contributionId: string, amount: number, note
   return { success: true, data: undefined }
 }
 
+export async function editContributionPayment(
+  contributionId: string,
+  newPaidAmount: number,
+  notes: string,
+  userId: string,
+  circleId: string
+): Promise<ActionResult> {
+  if (!contributionId || newPaidAmount < 0 || !userId || !circleId)
+    return { success: false, error: "Missing required fields" }
+  const supabase = createAdminSupabaseClient()
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", userId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!membership || !canEditContributions(membership.role))
+    return { success: false, error: "You don't have permission to edit payments for this circle." }
+  const { data: contrib } = await supabase
+    .from("contributions")
+    .select("paid_amount, contribution_cycle_id")
+    .eq("id", contributionId)
+    .single()
+  if (!contrib) return { success: false, error: "Contribution not found" }
+  const { data: cycle } = await supabase
+    .from("contribution_cycles")
+    .select("status, fund_circle_id")
+    .eq("id", contrib.contribution_cycle_id)
+    .single()
+  if (!cycle || cycle.fund_circle_id !== circleId) return { success: false, error: "Contribution not found" }
+  if (cycle.status === "closed") return { success: false, error: "Cycle is closed" }
+  const previousPaid = Number(contrib.paid_amount)
+  const { error: updateError } = await supabase
+    .from("contributions")
+    .update({
+      paid_amount: newPaidAmount,
+      payment_date: newPaidAmount > 0 ? new Date().toISOString().split("T")[0] : null,
+    })
+    .eq("id", contributionId)
+  if (updateError) return { success: false, error: "Failed to update contribution" }
+  await writeAuditLog({
+    circleId,
+    userId,
+    action: "payment_edited",
+    entityType: "contribution",
+    entityId: contributionId,
+    previousValue: { paid_amount: previousPaid },
+    newValue: { paid_amount: newPaidAmount, notes: notes || undefined },
+  })
+  revalidatePath(`/circles/${circleId}/cycles`)
+  return { success: true, data: undefined }
+}
+
 export async function closeCycleFormAction(formData: FormData): Promise<void> {
   const cycleId = formData.get("cycleId") as string; const userId = formData.get("userId") as string; const circleId = formData.get("circleId") as string
   await closeCycle(cycleId, userId, circleId)

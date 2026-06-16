@@ -7,6 +7,7 @@ import RecordPaymentDialog from "./RecordPaymentDialog"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatISODate } from "@/lib/format"
 import { ChevronDown } from "lucide-react"
+import EditPaymentDialog from "./EditPaymentDialog"
 
 interface Contribution {
   id: string
@@ -96,7 +97,15 @@ export default function ContributionTable({
                 )}
               />
               {canEdit && !cycleClosed && (
-                <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
+                  <EditPaymentDialog
+                    contributionId={c.id}
+                    circleId={circleId}
+                    userId={currentUserId}
+                    memberName={c.userName}
+                    expectedAmount={c.expectedAmount}
+                    currentPaid={c.paidAmount}
+                  />
                   <RecordPaymentDialog
                     contributionId={c.id}
                     circleId={circleId}
