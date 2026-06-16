@@ -68,8 +68,7 @@ function isDefaultLoanSettings(s: LoanSettings): boolean {
     s.assetAllocationPct === DEFAULT_LOAN.assetAllocationPct &&
     s.loanAllocationPct === DEFAULT_LOAN.loanAllocationPct &&
     s.loanInterestRatePct === DEFAULT_LOAN.loanInterestRatePct &&
-    s.contributionLateFee === DEFAULT_LOAN.contributionLateFee &&
-    s.loanLateFee === DEFAULT_LOAN.loanLateFee
+    s.contributionLateFee === DEFAULT_LOAN.contributionLateFee
   )
 }
 
@@ -163,10 +162,10 @@ export default function Step4Review({ userId, step1, step2, step3, onBack }: Ste
             value={`${step2.assetAllocationPct}% asset · ${step2.loanAllocationPct}% loans`}
           />
           <ReviewRow label="Loan interest" value={`${step2.loanInterestRatePct}% p.a.`} />
-          {(step2.contributionLateFee > 0 || step2.loanLateFee > 0) && (
+          {step2.contributionLateFee > 0 && (
             <ReviewRow
-              label="Late fees"
-              value={`${formatCurrency(step2.contributionLateFee)} contrib · ${formatCurrency(step2.loanLateFee)} loan`}
+              label="Contribution late fee"
+              value={`${formatCurrency(step2.contributionLateFee)} after ${step2.contributionGraceDays} day${step2.contributionGraceDays !== 1 ? "s" : ""}`}
             />
           )}
         </div>

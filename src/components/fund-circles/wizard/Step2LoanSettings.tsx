@@ -47,8 +47,6 @@ export default function Step2LoanSettings({ initialData, onNext, onBack }: Step2
   const [maxLoanPool, setMaxLoanPool] = useState(String(initialData.maxLoanPctOfLendingPool))
   const [contribLateFee, setContribLateFee] = useState(String(initialData.contributionLateFee))
   const [contribGraceDays, setContribGraceDays] = useState(String(initialData.contributionGraceDays))
-  const [loanLateFee, setLoanLateFee] = useState(String(initialData.loanLateFee))
-  const [loanGraceDays, setLoanGraceDays] = useState(String(initialData.loanGraceDays))
 
   const allocationSum = (Number(assetPct) || 0) + (Number(loanPct) || 0)
   const allocationError =
@@ -64,8 +62,8 @@ export default function Step2LoanSettings({ initialData, onNext, onBack }: Step2
     maxLoanPctOfLendingPool: Number(maxLoanPool),
     contributionLateFee: Number(contribLateFee),
     contributionGraceDays: Number(contribGraceDays),
-    loanLateFee: Number(loanLateFee),
-    loanGraceDays: Number(loanGraceDays),
+    loanLateFee: 0,
+    loanGraceDays: 0,
   })
 
   const handleNext = () => {
@@ -109,13 +107,12 @@ export default function Step2LoanSettings({ initialData, onNext, onBack }: Step2
 
       {/* Late fees */}
       <div>
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Late Fees &amp; Grace Periods</h3>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Contribution Late Fee &amp; Grace Period</h3>
         <div className="grid grid-cols-2 gap-3">
-          {field("s2-contrib-fee", "Contribution Late Fee", contribLateFee, setContribLateFee, { suffix: "₹" })}
-          {field("s2-contrib-grace", "Contribution Grace", contribGraceDays, setContribGraceDays, { suffix: "days" })}
-          {field("s2-loan-fee", "Loan Late Fee", loanLateFee, setLoanLateFee, { suffix: "₹" })}
-          {field("s2-loan-grace", "Loan Grace", loanGraceDays, setLoanGraceDays, { suffix: "days" })}
+          {field("s2-contrib-fee", "Late Fee", contribLateFee, setContribLateFee, { suffix: "₹" })}
+          {field("s2-contrib-grace", "Grace Period", contribGraceDays, setContribGraceDays, { suffix: "days" })}
         </div>
+        <p className="text-xs text-[var(--text-muted)] mt-2">Loan interest settings can be configured in circle settings after creation.</p>
       </div>
 
       <div className="flex items-center justify-between pt-2">
