@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -8,17 +8,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/format"
+import { calculateEMI } from "@/lib/loans"
 import { requestLoan } from "@/lib/actions"
 import { Send } from "lucide-react"
 
 interface LoanRequestFormProps {
   circleId: string
   userId: string
+  fixedRatePct: number
   maxAmount: number
   maxTermMonths?: number
 }
 
-export default function LoanRequestForm({ circleId, userId, maxAmount, maxTermMonths }: LoanRequestFormProps) {
+export default function LoanRequestForm({ circleId, userId, fixedRatePct, maxAmount, maxTermMonths }: LoanRequestFormProps) {
   const router = useRouter()
   const defaultAmount = Math.min(50000, maxAmount)
   const defaultTermMonths = maxTermMonths !== undefined ? Math.min(12, maxTermMonths) : 12
@@ -31,6 +33,13 @@ export default function LoanRequestForm({ circleId, userId, maxAmount, maxTermMo
 
   const amountNum = Number(amount) || 0
   const termNum = Math.floor(Number(termMonths)) || 0
+
+  const emi = useMemo(
+    () => (amountNum > 0 && termNum > 0 ? calculateEMI(amountNum, fixedRatePct, termNum) : 0),
+    [amountNum, termNum, fixedRatePct]
+  )
+  const totalPayment = emi * termNum
+  const totalInterest = totalPayment - amountNum
 
   const handleAmountChange = (value: string) => {
     if (maxAmount !== undefined && Number(value) > maxAmount) {
@@ -110,6 +119,24 @@ export default function LoanRequestForm({ circleId, userId, maxAmount, maxTermMo
               )}
             </div>
           </div>
+
+          {/* Live EMI preview */}
+          {amountNum > 0 && termNum > 0 && (
+            <div className="rounded-xl bg-[var(--border-light)] p-4 grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-[11px] text-[var(--text-muted)]">Monthly EMI</p>
+                <p className="text-lg font-bold font-tabular text-[var(--text-primary)]">{formatCurrency(emi)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-[var(--text-muted)]">Total Interest</p>
+                <p className="text-base font-semibold font-tabular text-[var(--text-primary)]">{formatCurrency(totalInterest)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-[var(--text-muted)]">Total Payment</p>
+                <p className="text-base font-semibold font-tabular text-[var(--text-primary)]">{formatCurrency(totalPayment)}</p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="req-purpose">Purpose (optional)</Label>

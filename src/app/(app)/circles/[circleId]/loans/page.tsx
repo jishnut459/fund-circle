@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import LoanReviewDialog from "@/components/loans/LoanReviewDialog"
 import LoanCard, { type LoanCardData } from "@/components/loans/LoanCard"
+import EligibilityWidget from "@/components/loans/EligibilityWidget"
 import { formatCurrency } from "@/lib/format"
 import { HandCoins, Plus } from "lucide-react"
 
@@ -136,12 +137,15 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">My Loans</h3>
         {myLoanCards.length === 0 ? (
-          <EmptyState
-            icon={HandCoins}
-            title="No loans yet"
-            description="Request a loan against your contributions whenever you need it."
-            action={{ label: "Request Loan", href: `/circles/${circleId}/loans/new` }}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <EligibilityWidget circleId={circleId} userId={user.id} />
+            <EmptyState
+              icon={HandCoins}
+              title="No loans yet"
+              description="Request a loan against your contributions whenever you need it."
+              action={{ label: "Request Loan", href: `/circles/${circleId}/loans/new` }}
+            />
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {myLoanCards.map((loan) => (
