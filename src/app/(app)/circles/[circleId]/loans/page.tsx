@@ -11,6 +11,7 @@ import LoanReviewDialog from "@/components/loans/LoanReviewDialog"
 import LoanCard, { type LoanCardData } from "@/components/loans/LoanCard"
 import EligibilityWidget from "@/components/loans/EligibilityWidget"
 import { formatCurrency } from "@/lib/format"
+import { Badge } from "@/components/ui/badge"
 import { HandCoins, Plus } from "lucide-react"
 
 export default async function LoansPage({ params }: { params: Promise<{ circleId: string }> }) {
@@ -86,6 +87,7 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
 
   const pendingRequests: {
     id: string
+    userId: string
     memberName: string
     requestedAmount: number
     requestedTermMonths: number
@@ -110,6 +112,7 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
       const eligibility = await getLoanEligibility(circleId, loan.user_id)
       pendingRequests.push({
         id: loan.id,
+        userId: loan.user_id,
         memberName: profileMap.get(loan.user_id) ?? "Unknown",
         requestedAmount: Number(loan.requested_amount),
         requestedTermMonths: loan.requested_term_months,
@@ -166,32 +169,39 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
             />
           ) : (
             <div className="space-y-3">
-              {pendingRequests.map((loan) => (
-                <div
-                  key={loan.id}
-                  className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[var(--text-primary)] truncate">{loan.memberName}</p>
-                    <p className="text-sm font-tabular font-medium text-[var(--text-primary)]">
-                      {formatCurrency(loan.requestedAmount)} &middot; {loan.requestedTermMonths} months
-                    </p>
-                    {loan.purpose && <p className="text-xs text-[var(--text-muted)] truncate">{loan.purpose}</p>}
+              {pendingRequests.map((loan) => {
+                const isOwnLoan = loan.userId === user.id
+                return (
+                  <div
+                    key={loan.id}
+                    className="rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[var(--text-primary)] truncate">{loan.memberName}</p>
+                      <p className="text-sm font-tabular font-medium text-[var(--text-primary)]">
+                        {formatCurrency(loan.requestedAmount)} &middot; {loan.requestedTermMonths} months
+                      </p>
+                      {loan.purpose && <p className="text-xs text-[var(--text-muted)] truncate">{loan.purpose}</p>}
+                    </div>
+                    {isOwnLoan ? (
+                      <Badge variant="warning">Awaiting review</Badge>
+                    ) : (
+                      <LoanReviewDialog
+                        loanId={loan.id}
+                        circleId={circleId}
+                        actorUserId={user.id}
+                        memberName={loan.memberName}
+                        requestedAmount={loan.requestedAmount}
+                        requestedTermMonths={loan.requestedTermMonths}
+                        purpose={loan.purpose}
+                        fixedRatePct={fixedRatePct}
+                        maxAmount={loan.maxAmount}
+                        maxTermMonths={maxTermMonths}
+                      />
+                    )}
                   </div>
-                  <LoanReviewDialog
-                    loanId={loan.id}
-                    circleId={circleId}
-                    actorUserId={user.id}
-                    memberName={loan.memberName}
-                    requestedAmount={loan.requestedAmount}
-                    requestedTermMonths={loan.requestedTermMonths}
-                    purpose={loan.purpose}
-                    fixedRatePct={fixedRatePct}
-                    maxAmount={loan.maxAmount}
-                    maxTermMonths={maxTermMonths}
-                  />
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
