@@ -1,10 +1,9 @@
 import { getCurrentUser } from "@/lib/get-current-user"
 import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import AppShell from "@/components/layout/AppShell"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, Users } from "lucide-react"
+import { Users } from "lucide-react"
 import { formatCurrency } from "@/lib/format"
 
 export default async function CircleLayout({
@@ -53,23 +52,16 @@ export default async function CircleLayout({
   }
 
   return (
-    <AppShell currentUser={currentUser}>
-      <div className="sticky top-0 z-10 bg-[var(--bg-page)] -mt-4 md:-mt-6 lg:-mt-8 pt-4 md:pt-6 lg:pt-8 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
-        <Link
-          href="/circles"
-          className="inline-flex items-center gap-1.5 text-sm text-teal hover:text-teal-700 font-medium mb-3 transition-colors"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          All Circles
-        </Link>
-        <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] shadow-[var(--shadow-card)] p-4 sm:p-5">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-teal flex items-center justify-center shrink-0 text-white font-bold text-lg sm:text-xl">
+    <AppShell currentUser={currentUser} circleName={circle.name}>
+      <div className="hidden lg:block sticky top-0 z-10 bg-[var(--bg-page)] -mt-8 pt-8 pb-4 -mx-8 px-8">
+        <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] shadow-[var(--shadow-card)] p-5">
+          <div className="flex items-center gap-4">
+            <div className="w-13 h-13 rounded-2xl bg-teal flex items-center justify-center shrink-0 text-white font-bold text-xl">
               {circle.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight truncate">
+                <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight truncate">
                   {circle.name}
                 </h1>
                 <Badge
@@ -90,11 +82,11 @@ export default async function CircleLayout({
                 {memberCount ?? 0} member{memberCount !== 1 ? "s" : ""}
               </span>
             </div>
-            <div className="text-right shrink-0 pl-3 sm:pl-4 sm:border-l sm:border-[var(--border-light)]">
-              <p className="text-xl sm:text-2xl font-bold font-tabular text-[var(--text-primary)]">
+            <div className="text-right shrink-0 pl-4 border-l border-[var(--border-light)]">
+              <p className="text-2xl font-bold font-tabular text-[var(--text-primary)]">
                 {formatCurrency(Number(circle.contribution_amount))}
               </p>
-              <p className="text-xs sm:text-sm text-[var(--text-muted)] capitalize">
+              <p className="text-sm text-[var(--text-muted)] capitalize">
                 per {circle.contribution_frequency.replace(/_/g, " ")}
               </p>
             </div>

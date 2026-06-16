@@ -54,25 +54,35 @@ function FundsMetricCard({
   label,
   value,
   iconClass,
+  href,
 }: {
   icon: LucideIcon
   label: string
   value: string
   iconClass: string
+  href?: string
 }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <p className="text-xs font-medium text-[var(--text-muted)] truncate">{label}</p>
+  const inner = (
+    <CardContent className="p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
+          <Icon className="h-4 w-4" />
         </div>
-        <p className="text-xl font-bold font-tabular text-[var(--text-primary)]">{value}</p>
-      </CardContent>
-    </Card>
+        <p className="text-xs font-medium text-[var(--text-muted)] truncate">{label}</p>
+      </div>
+      <p className="text-xl font-bold font-tabular text-[var(--text-primary)]">{value}</p>
+    </CardContent>
   )
+  if (href) {
+    return (
+      <Link href={href} className="block group">
+        <Card className="transition-shadow group-hover:shadow-[var(--shadow-card-hover)] group-hover:border-[var(--border-color)]">
+          {inner}
+        </Card>
+      </Link>
+    )
+  }
+  return <Card>{inner}</Card>
 }
 
 
@@ -197,24 +207,28 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
           label="Lending Pool Available"
           value={formatCurrency(lendingPoolAvailable)}
           iconClass="bg-teal-50 dark:bg-teal-900/20 text-teal"
+          href={`/circles/${circleId}/loans`}
         />
         <FundsMetricCard
           icon={Landmark}
           label="Assets Value"
           value={formatCurrency(assetsValue)}
           iconClass="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+          href={`/circles/${circleId}/assets`}
         />
         <FundsMetricCard
           icon={Wallet}
           label="Outstanding Loans"
           value={formatCurrency(totalPrincipalOutstanding)}
           iconClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+          href={`/circles/${circleId}/loans`}
         />
         <FundsMetricCard
           icon={ListChecks}
           label="Active Loans"
           value={String(activeLoanCount)}
           iconClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+          href={`/circles/${circleId}/loans`}
         />
       </div>
 

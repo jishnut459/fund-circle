@@ -12,9 +12,11 @@ import {
   Users,
   Banknote,
   HandCoins,
+  Landmark,
   Menu,
   ScrollText,
   Settings,
+  ChevronLeft,
 } from "lucide-react"
 
 interface AppUser {
@@ -25,7 +27,7 @@ interface AppUser {
   avatarUrl: string | null
 }
 
-function AppSidebar({ currentUser }: { currentUser: AppUser }) {
+function AppSidebar({ currentUser, circleName }: { currentUser: AppUser; circleName?: string }) {
   const pathname = usePathname()
   const isCirclesHome = pathname === "/circles"
   const isInCircle = pathname.startsWith("/circles/") && !isCirclesHome && pathname.split("/")[2] !== "new"
@@ -37,6 +39,7 @@ function AppSidebar({ currentUser }: { currentUser: AppUser }) {
         { href: `/circles/${circleId}/members`, label: "Members", icon: Users },
         { href: `/circles/${circleId}/cycles`, label: "Payments", icon: Banknote },
         { href: `/circles/${circleId}/loans`, label: "Loans", icon: HandCoins },
+        { href: `/circles/${circleId}/assets`, label: "Assets", icon: Landmark },
         ...(isAdminOrOwner(currentUser.circleRole ?? "")
           ? [
               { href: `/circles/${circleId}/audit-logs`, label: "Audit Logs", icon: ScrollText },
@@ -49,16 +52,39 @@ function AppSidebar({ currentUser }: { currentUser: AppUser }) {
   return (
     <aside className="hidden lg:flex w-60 border-r border-[var(--border-color)] bg-[var(--bg-surface)] flex-col shrink-0">
       <div className="p-4 border-b border-[var(--border-light)]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-teal flex items-center justify-center shrink-0">
-            <PiggyBank className="h-5 w-5 text-white" />
+        {circleName ? (
+          <div>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-teal flex items-center justify-center shrink-0 text-white font-bold text-base">
+                {circleName.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-bold text-sm text-[var(--text-primary)] tracking-tight truncate">
+                  {circleName}
+                </h2>
+                <p className="text-xs text-[var(--text-muted)]">Fund Circle</p>
+              </div>
+            </div>
+            <Link
+              href="/circles"
+              className="inline-flex items-center gap-1 text-xs text-teal hover:text-teal-700 font-medium transition-colors"
+            >
+              <ChevronLeft className="h-3 w-3" />
+              All Circles
+            </Link>
           </div>
-          <div className="min-w-0">
-            <h2 className="font-bold text-sm text-[var(--text-primary)] tracking-tight">
-              Fund Circle
-            </h2>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-teal flex items-center justify-center shrink-0">
+              <PiggyBank className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-bold text-sm text-[var(--text-primary)] tracking-tight">
+                Fund Circle
+              </h2>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5">
@@ -130,12 +156,15 @@ function BottomNav({ currentUser }: { currentUser: AppUser }) {
     { href: `/circles/${circleId}/loans`, label: "Loans", icon: HandCoins },
   ]
 
-  const moreTabs = isAdminOrOwner(currentUser.circleRole ?? "")
-    ? [
-        { href: `/circles/${circleId}/audit-logs`, label: "Audit", icon: ScrollText },
-        { href: `/circles/${circleId}/settings`, label: "Settings", icon: Settings },
-      ]
-    : []
+  const moreTabs = [
+    { href: `/circles/${circleId}/assets`, label: "Assets", icon: Landmark },
+    ...(isAdminOrOwner(currentUser.circleRole ?? "")
+      ? [
+          { href: `/circles/${circleId}/audit-logs`, label: "Audit", icon: ScrollText },
+          { href: `/circles/${circleId}/settings`, label: "Settings", icon: Settings },
+        ]
+      : []),
+  ]
 
   const isMoreActive = moreTabs.some((t) => pathname.startsWith(t.href))
 
@@ -205,12 +234,36 @@ function BottomNav({ currentUser }: { currentUser: AppUser }) {
   )
 }
 
-function MobileHeader({ currentUser }: { currentUser: AppUser }) {
+function MobileHeader({ currentUser, circleName }: { currentUser: AppUser; circleName?: string }) {
   const user = {
     name: currentUser.name,
     email: currentUser.email,
     role: currentUser.circleRole ?? "",
     avatarUrl: currentUser.avatarUrl,
+  }
+
+  if (circleName) {
+    return (
+      <div className="lg:hidden sticky top-0 z-30 bg-[var(--bg-surface)] border-b border-[var(--border-light)]">
+        <div className="flex items-center h-12 px-2 gap-1">
+          <Link
+            href="/circles"
+            className="flex items-center justify-center w-9 h-9 rounded-xl text-teal hover:bg-[var(--border-light)] transition-colors shrink-0"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
+          <div className="flex items-center gap-2 flex-1 min-w-0 px-1">
+            <div className="w-7 h-7 rounded-lg bg-teal flex items-center justify-center shrink-0 text-white font-bold text-xs">
+              {circleName.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-sm font-bold text-[var(--text-primary)] truncate">
+              {circleName}
+            </span>
+          </div>
+          <UserDropdown user={user} compact side="bottom" />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -233,15 +286,17 @@ function MobileHeader({ currentUser }: { currentUser: AppUser }) {
 export default function AppShell({
   children,
   currentUser,
+  circleName,
 }: {
   children: React.ReactNode
   currentUser: AppUser
+  circleName?: string
 }) {
   return (
     <div className="flex h-full">
-      <AppSidebar currentUser={currentUser} />
+      <AppSidebar currentUser={currentUser} circleName={circleName} />
       <div className="flex-1 flex flex-col min-w-0">
-        <MobileHeader currentUser={currentUser} />
+        <MobileHeader currentUser={currentUser} circleName={circleName} />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
           <div className="p-4 md:p-6 lg:p-8">{children}</div>
         </main>
