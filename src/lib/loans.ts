@@ -142,6 +142,22 @@ export function monthsToPayOff(principal: number, monthlyRate: number, emi: numb
 }
 
 /**
+ * Daily reducing-balance interest for a late installment payment.
+ * Used when a member pays after the grace period — the outstanding
+ * principal (balance at the start of this installment's period) accrues
+ * interest at the loan's annual rate for every calendar day past the grace deadline.
+ */
+export function calculateDailyAccruedInterest(
+  outstandingPrincipal: number,
+  annualRatePct: number,
+  daysLate: number
+): number {
+  if (daysLate <= 0 || outstandingPrincipal <= 0 || annualRatePct <= 0) return 0
+  const dailyRate = annualRatePct / 36500
+  return roundCurrency(outstandingPrincipal * dailyRate * daysLate)
+}
+
+/**
  * Accrued interest to today on the outstanding principal.
  * Covers principal components of overdue/current unpaid installments only —
  * future interest is NOT charged on early settlement.

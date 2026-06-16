@@ -81,6 +81,12 @@ export default function LoanInstallmentTable({
     )
   }
 
+  // Only the earliest installment that is neither paid nor has a pending payment can be submitted.
+  // This mirrors bank loan behaviour: you must clear overdue instalments in order.
+  const nextSubmittableId = installments.find(
+    (inst) => inst.status !== "paid" && !pendingByInstallment[inst.id]
+  )?.id
+
   const statusBorder = (status: string) => {
     switch (status) {
       case "paid": return "border-l-emerald-500"
@@ -95,7 +101,7 @@ export default function LoanInstallmentTable({
       {installments.map((i) => {
         const isExpanded = expandedId === i.id
         const pending = pendingByInstallment[i.id]
-        const canSubmit = isLoanOwner && i.status !== "paid" && !pending
+        const canSubmit = isLoanOwner && i.id === nextSubmittableId
 
         return (
           <div
@@ -148,8 +154,6 @@ export default function LoanInstallmentTable({
                     circleId={circleId}
                     userId={actorUserId}
                     installmentNumber={i.installmentNumber}
-                    totalDue={i.totalDue}
-                    paidAmount={i.paidAmount}
                     currentEMI={currentEMI}
                   />
                 )}

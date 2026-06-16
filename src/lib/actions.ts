@@ -7,7 +7,7 @@ import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
-import { calculateAccruedInterest, calculateOutstandingPrincipal, computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, monthsToPayOff, roundCurrency } from "@/lib/loans"
+import { calculateAccruedInterest, calculateDailyAccruedInterest, calculateOutstandingPrincipal, computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, monthsToPayOff, roundCurrency } from "@/lib/loans"
 import { computeMemberShare } from "@/lib/settlement"
 import { toISODate } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
@@ -806,6 +806,58 @@ export async function reviewLoanRequest(
   return { success: true, data: undefined }
 }
 
+export async function getInstallmentDue(
+  installmentId: string,
+  circleId: string
+): Promise<ActionResult<{
+  scheduledDue: number
+  paidAmount: number
+  remaining: number
+  daysLate: number
+  accruedInterest: number
+  totalOwed: number
+  annualRatePct: number
+}>> {
+  if (!installmentId || !circleId) return { success: false, error: "Missing required fields" }
+  const supabase = createAdminSupabaseClient()
+  const { data: installment } = await supabase
+    .from("loan_installments")
+    .select("id, loan_id, installment_number, due_date, total_due, paid_amount")
+    .eq("id", installmentId)
+    .single()
+  if (!installment) return { success: false, error: "Installment not found" }
+  const { data: loan } = await supabase
+    .from("loans")
+    .select("id, fund_circle_id, interest_rate_pct")
+    .eq("id", installment.loan_id)
+    .single()
+  if (!loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
+  const [{ data: circle }, { data: thisAndFuture }] = await Promise.all([
+    supabase.from("fund_circles").select("loan_grace_days").eq("id", circleId).single(),
+    supabase
+      .from("loan_installments")
+      .select("principal_component")
+      .eq("loan_id", loan.id)
+      .gte("installment_number", installment.installment_number),
+  ])
+  const outstandingPrincipal = roundCurrency(
+    (thisAndFuture ?? []).reduce((sum, i) => sum + Number(i.principal_component), 0)
+  )
+  const graceDays = Number(circle?.loan_grace_days ?? 0)
+  const dueDate = new Date(installment.due_date)
+  const graceDeadline = new Date(dueDate)
+  graceDeadline.setDate(graceDeadline.getDate() + graceDays)
+  const msPerDay = 1000 * 60 * 60 * 24
+  const daysLate = Math.max(0, Math.floor((Date.now() - graceDeadline.getTime()) / msPerDay))
+  const annualRatePct = Number(loan.interest_rate_pct ?? 0)
+  const accruedInterest = calculateDailyAccruedInterest(outstandingPrincipal, annualRatePct, daysLate)
+  const scheduledDue = Number(installment.total_due)
+  const paidAmount = Number(installment.paid_amount)
+  const remaining = roundCurrency(scheduledDue - paidAmount)
+  const totalOwed = roundCurrency(remaining + accruedInterest)
+  return { success: true, data: { scheduledDue, paidAmount, remaining, daysLate, accruedInterest, totalOwed, annualRatePct } }
+}
+
 export async function submitLoanPayment(
   installmentId: string,
   amount: number,
@@ -818,28 +870,69 @@ export async function submitLoanPayment(
   const supabase = createAdminSupabaseClient()
   const { data: installment } = await supabase
     .from("loan_installments")
-    .select("id, loan_id, total_due, paid_amount")
+    .select("id, loan_id, installment_number, due_date, total_due, paid_amount")
     .eq("id", installmentId)
     .single()
   if (!installment) return { success: false, error: "Installment not found" }
   const { data: loan } = await supabase
     .from("loans")
-    .select("id, fund_circle_id, user_id, status")
+    .select("id, fund_circle_id, user_id, status, interest_rate_pct")
     .eq("id", installment.loan_id)
     .single()
   if (!loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
   if (loan.user_id !== userId) return { success: false, error: "You can only submit payments for your own loans." }
   if (loan.status !== "active") return { success: false, error: "Payments can only be submitted for active loans" }
-  const { data: existing } = await supabase
+
+  // Sequential enforcement: the submitted installment must be the earliest unpaid one
+  // with no existing pending payment. Banks don't allow paying future installments while
+  // older ones are still outstanding.
+  const { data: allInstallments } = await supabase
+    .from("loan_installments")
+    .select("id, installment_number, paid_amount, total_due")
+    .eq("loan_id", loan.id)
+    .order("installment_number", { ascending: true })
+  const { data: existingPending } = await supabase
     .from("loan_payments")
-    .select("id")
-    .eq("loan_installment_id", installmentId)
+    .select("loan_installment_id")
+    .in("loan_installment_id", (allInstallments ?? []).map((i) => i.id))
     .eq("status", "pending")
-    .maybeSingle()
-  if (existing) return { success: false, error: "A payment is already pending verification for this installment." }
+  const pendingSet = new Set(
+    (existingPending ?? []).map((p) => p.loan_installment_id).filter(Boolean) as string[]
+  )
+  const firstUnpaid = (allInstallments ?? []).find(
+    (i) => Number(i.paid_amount) < Number(i.total_due) && !pendingSet.has(i.id)
+  )
+  if (!firstUnpaid || firstUnpaid.id !== installmentId)
+    return { success: false, error: "Please settle earlier installments before paying this one." }
+
+  // Calculate accrued daily interest at submission time so admin delays don't penalise the member
+  const [{ data: circle }, { data: thisAndFuture }] = await Promise.all([
+    supabase.from("fund_circles").select("loan_grace_days").eq("id", circleId).single(),
+    supabase
+      .from("loan_installments")
+      .select("principal_component")
+      .eq("loan_id", loan.id)
+      .gte("installment_number", installment.installment_number),
+  ])
+  const outstandingPrincipal = roundCurrency(
+    (thisAndFuture ?? []).reduce((sum, i) => sum + Number(i.principal_component), 0)
+  )
+  const graceDays = Number(circle?.loan_grace_days ?? 0)
+  const dueDate = new Date(installment.due_date)
+  const graceDeadline = new Date(dueDate)
+  graceDeadline.setDate(graceDeadline.getDate() + graceDays)
+  const msPerDay = 1000 * 60 * 60 * 24
+  const daysLate = Math.max(0, Math.floor((Date.now() - graceDeadline.getTime()) / msPerDay))
+  const accruedInterest = calculateDailyAccruedInterest(
+    outstandingPrincipal,
+    Number(loan.interest_rate_pct ?? 0),
+    daysLate
+  )
+
   const { error } = await supabase.from("loan_payments").insert({
     loan_installment_id: installmentId,
     amount,
+    accrued_interest: accruedInterest,
     recorded_by: userId,
     submitted_by: userId,
     status: "pending",
@@ -965,7 +1058,7 @@ export async function verifyLoanPayment(
     return { success: false, error: "You don't have permission to verify payments." }
   const { data: payment } = await supabase
     .from("loan_payments")
-    .select("id, loan_installment_id, loan_id, amount, status, payment_type, prepayment_strategy")
+    .select("id, loan_installment_id, loan_id, amount, accrued_interest, status, payment_type, prepayment_strategy")
     .eq("id", paymentId)
     .single()
   if (!payment) return { success: false, error: "Payment not found" }
@@ -974,7 +1067,7 @@ export async function verifyLoanPayment(
   if (payment.payment_type === "regular") {
     const { data: installment } = await supabase
       .from("loan_installments")
-      .select("id, loan_id, due_date, total_due, paid_amount, late_fee_applied")
+      .select("id, loan_id, total_due, paid_amount")
       .eq("id", payment.loan_installment_id!)
       .single()
     if (!installment) return { success: false, error: "Installment not found" }
@@ -985,27 +1078,15 @@ export async function verifyLoanPayment(
       .single()
     if (!loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
     if (loan.status !== "active") return { success: false, error: "Loan is not active" }
-    const { data: circle } = await supabase
-      .from("fund_circles")
-      .select("loan_late_fee, loan_grace_days")
-      .eq("id", circleId)
-      .single()
     const previousPaid = Number(installment.paid_amount)
     const previousTotalDue = Number(installment.total_due)
-    let totalDue = previousTotalDue
-    let lateFeeApplied = Number(installment.late_fee_applied)
-    if (lateFeeApplied === 0 && circle && Number(circle.loan_late_fee) > 0) {
-      const graceDeadline = new Date(installment.due_date)
-      graceDeadline.setDate(graceDeadline.getDate() + Number(circle.loan_grace_days))
-      if (toISODate(new Date()) > toISODate(graceDeadline)) {
-        lateFeeApplied = Number(circle.loan_late_fee)
-        totalDue = roundCurrency(totalDue + lateFeeApplied)
-      }
-    }
+    // Accrued interest was calculated and locked in at submission time
+    const accruedInterest = roundCurrency(Number(payment.accrued_interest ?? 0))
+    const totalDue = roundCurrency(previousTotalDue + accruedInterest)
     const newPaid = roundCurrency(previousPaid + Number(payment.amount))
     const { error: updateErr } = await supabase
       .from("loan_installments")
-      .update({ paid_amount: newPaid, total_due: totalDue, late_fee_applied: lateFeeApplied })
+      .update({ paid_amount: newPaid, total_due: totalDue })
       .eq("id", installment.id)
     if (updateErr) return { success: false, error: "Failed to update installment" }
     await supabase
@@ -1019,7 +1100,7 @@ export async function verifyLoanPayment(
       entityType: "loan_installment",
       entityId: installment.id,
       previousValue: { paidAmount: previousPaid, totalDue: previousTotalDue },
-      newValue: { paidAmount: newPaid, totalDue, lateFeeApplied, paymentAmount: Number(payment.amount) },
+      newValue: { paidAmount: newPaid, totalDue, accruedInterest, paymentAmount: Number(payment.amount) },
     })
     const { data: allInstallments } = await supabase
       .from("loan_installments")
