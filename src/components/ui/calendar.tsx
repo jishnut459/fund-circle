@@ -11,25 +11,30 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      navLayout="around"
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col",
-        month: "flex flex-col gap-3",
-        month_caption: "relative flex items-center justify-center h-9",
+        // navLayout="around" puts the buttons inside month as siblings of month_caption,
+        // so we make month relative and absolutely position the buttons on each side.
+        month: "relative flex flex-col gap-3",
+        month_caption: "flex items-center justify-center h-9 px-10",
         caption_label: "text-sm font-semibold text-[var(--text-primary)]",
-        nav: "absolute inset-x-0 flex items-center justify-between px-1",
         button_previous: [
-          "h-7 w-7 flex items-center justify-center rounded-lg",
+          "absolute left-0 top-0",
+          "h-9 w-9 flex items-center justify-center rounded-lg",
           "border border-[var(--border-color)] bg-[var(--bg-surface)]",
           "text-[var(--text-secondary)] hover:bg-[var(--border-light)] hover:text-[var(--text-primary)]",
           "transition-colors",
         ].join(" "),
         button_next: [
-          "h-7 w-7 flex items-center justify-center rounded-lg",
+          "absolute right-0 top-0",
+          "h-9 w-9 flex items-center justify-center rounded-lg",
           "border border-[var(--border-color)] bg-[var(--bg-surface)]",
           "text-[var(--text-secondary)] hover:bg-[var(--border-light)] hover:text-[var(--text-primary)]",
           "transition-colors",
         ].join(" "),
+        chevron: "h-4 w-4",
         month_grid: "w-full border-collapse",
         weekdays: "flex mb-1",
         weekday: "w-9 text-[0.75rem] font-medium text-[var(--text-muted)] text-center",
@@ -49,11 +54,11 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         ...classNames,
       }}
       components={{
-        Chevron: ({ orientation, ...rest }) =>
+        Chevron: ({ orientation }) =>
           orientation === "left" ? (
-            <ChevronLeft className="h-4 w-4" {...(rest as React.SVGProps<SVGSVGElement>)} />
+            <ChevronLeft className="h-4 w-4" />
           ) : (
-            <ChevronRight className="h-4 w-4" {...(rest as React.SVGProps<SVGSVGElement>)} />
+            <ChevronRight className="h-4 w-4" />
           ),
       }}
       {...props}
