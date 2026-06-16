@@ -39,6 +39,8 @@ export default function RootLayout({
         {children}
         <Toaster
           position="top-center"
+          closeButton
+          duration={4000}
           toastOptions={{
             style: {
               background: "var(--bg-surface)",
