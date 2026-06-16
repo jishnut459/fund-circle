@@ -28,6 +28,12 @@ export interface PendingPayment {
   submittedByName?: string
 }
 
+export type ContribOptimisticUpdate =
+  | { type: 'verify'; contributionId: string; addedAmount: number }
+  | { type: 'reject'; contributionId: string }
+  | { type: 'edit'; contributionId: string; newPaidAmount: number }
+  | { type: 'addPending'; contributionId: string; paymentId: string; amount: number; submittedByName?: string }
+
 export default function ContributionTable({
   contributions,
   circleId,
@@ -35,6 +41,7 @@ export default function ContributionTable({
   canEdit,
   cycleClosed,
   pendingPayments = {},
+  onOptimisticUpdate,
 }: {
   contributions: Contribution[]
   contributionCycleId?: string
@@ -44,6 +51,7 @@ export default function ContributionTable({
   canEdit: boolean
   cycleClosed: boolean
   pendingPayments?: Record<string, PendingPayment>
+  onOptimisticUpdate?: (update: ContribOptimisticUpdate) => void
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -110,10 +118,12 @@ export default function ContributionTable({
                   {canEdit && pending && (
                     <VerifyPaymentActions
                       paymentId={pending.id}
+                      contributionId={c.id}
                       circleId={circleId}
                       userId={currentUserId}
                       amount={pending.amount}
                       submittedByName={pending.submittedByName}
+                      onOptimisticUpdate={onOptimisticUpdate}
                     />
                   )}
                   {canEdit && (
@@ -124,6 +134,7 @@ export default function ContributionTable({
                       memberName={c.userName}
                       expectedAmount={c.expectedAmount}
                       currentPaid={c.paidAmount}
+                      onOptimisticUpdate={onOptimisticUpdate}
                     />
                   )}
                   {isOwnContribution && !pending && (
@@ -133,6 +144,7 @@ export default function ContributionTable({
                       userId={currentUserId}
                       expectedAmount={c.expectedAmount}
                       currentPaid={c.paidAmount}
+                      onOptimisticUpdate={onOptimisticUpdate}
                     />
                   )}
                 </div>

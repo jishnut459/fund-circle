@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +16,7 @@ import {
 import { Check } from "lucide-react"
 import { submitContributionPayment } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
+import type { ContribOptimisticUpdate } from "./ContributionTable"
 
 export default function SubmitPaymentDialog({
   contributionId,
@@ -24,14 +24,16 @@ export default function SubmitPaymentDialog({
   userId,
   expectedAmount,
   currentPaid,
+  onOptimisticUpdate,
 }: {
   contributionId: string
   circleId: string
   userId: string
   expectedAmount: number
   currentPaid: number
+  onOptimisticUpdate?: (update: ContribOptimisticUpdate) => void
 }) {
-  const router = useRouter()
+  const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState("")
   const [notes, setNotes] = useState("")
@@ -54,12 +56,19 @@ export default function SubmitPaymentDialog({
     if (!amount || Number(amount) <= 0) return
     setLoading(true)
     setError("")
+    startTransition(() =>
+      onOptimisticUpdate?.({
+        type: 'addPending',
+        contributionId,
+        paymentId: 'optimistic-pending',
+        amount: Number(amount),
+      })
+    )
     const result = await submitContributionPayment(contributionId, Number(amount), notes, userId, circleId)
     setLoading(false)
     if (!result.success) { setError(result.error); return }
     toast.success(`Payment of ${formatCurrency(Number(amount))} submitted — awaiting admin verification`)
     setOpen(false)
-    router.refresh()
   }
 
   return (

@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +16,7 @@ import {
 import { Pencil } from "lucide-react"
 import { editContributionPayment } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
+import type { ContribOptimisticUpdate } from "./ContributionTable"
 
 export default function EditPaymentDialog({
   contributionId,
@@ -25,6 +25,7 @@ export default function EditPaymentDialog({
   memberName,
   expectedAmount,
   currentPaid,
+  onOptimisticUpdate,
 }: {
   contributionId: string
   circleId: string
@@ -32,8 +33,9 @@ export default function EditPaymentDialog({
   memberName?: string
   expectedAmount: number
   currentPaid: number
+  onOptimisticUpdate?: (update: ContribOptimisticUpdate) => void
 }) {
-  const router = useRouter()
+  const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState("")
   const [notes, setNotes] = useState("")
@@ -55,6 +57,10 @@ export default function EditPaymentDialog({
     setLoading(true)
     setError("")
 
+    startTransition(() =>
+      onOptimisticUpdate?.({ type: 'edit', contributionId, newPaidAmount: Number(amount) })
+    )
+
     const result = await editContributionPayment(
       contributionId,
       Number(amount),
@@ -74,7 +80,6 @@ export default function EditPaymentDialog({
       `Payment updated to ${formatCurrency(Number(amount))}${memberName ? ` for ${memberName}` : ""}`
     )
     setOpen(false)
-    router.refresh()
   }
 
   const newAmount = Number(amount)

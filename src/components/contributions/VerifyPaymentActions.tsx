@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,21 +16,26 @@ import {
 import { CheckCircle2, XCircle, Clock } from "lucide-react"
 import { verifyContributionPayment, rejectContributionPayment } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
+import type { ContribOptimisticUpdate } from "./ContributionTable"
 
 export default function VerifyPaymentActions({
   paymentId,
+  contributionId,
   circleId,
   userId,
   amount,
   submittedByName,
+  onOptimisticUpdate,
 }: {
   paymentId: string
+  contributionId: string
   circleId: string
   userId: string
   amount: number
   submittedByName?: string
+  onOptimisticUpdate?: (update: ContribOptimisticUpdate) => void
 }) {
-  const router = useRouter()
+  const [, startTransition] = useTransition()
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState("")
   const [loading, setLoading] = useState<"verify" | "reject" | null>(null)
@@ -39,23 +43,23 @@ export default function VerifyPaymentActions({
 
   const handleVerify = async () => {
     setLoading("verify")
+    startTransition(() => onOptimisticUpdate?.({ type: 'verify', contributionId, addedAmount: amount }))
     const result = await verifyContributionPayment(paymentId, userId, circleId)
     setLoading(null)
     if (!result.success) { toast.error(result.error); return }
     toast.success(`${formatCurrency(amount)} verified`)
-    router.refresh()
   }
 
   const handleReject = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading("reject")
     setError("")
+    startTransition(() => onOptimisticUpdate?.({ type: 'reject', contributionId }))
     const result = await rejectContributionPayment(paymentId, reason, userId, circleId)
     setLoading(null)
     if (!result.success) { setError(result.error); return }
     toast.success("Payment rejected")
     setRejectOpen(false)
-    router.refresh()
   }
 
   return (
