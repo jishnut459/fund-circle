@@ -4,6 +4,7 @@ import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { formatCurrency, formatISODate } from "@/lib/format"
+import FundHealthCard from "./FundHealthCard"
 
 interface MemberData {
   circleMeta: {
@@ -37,6 +38,9 @@ interface MemberData {
   assetsValue: number
   myOutstandingLoan: number
   myLoanEligibility: number
+  totalDisbursed: number
+  totalRepaid: number
+  totalContributionsCollected: number
   endDate: string | null
   settlementStatus: string | null
   showSettlementBanner: boolean
@@ -98,7 +102,7 @@ const STATUS_BAR_COLOR: Record<string, string> = {
 }
 
 export default function MemberDashboard({ data }: { data: MemberData }) {
-  const { currentCycle, totalPaid, cycles, circleMeta, lendingPoolAvailable, assetsValue, myOutstandingLoan, myLoanEligibility, endDate, settlementStatus, showSettlementBanner, endDatePassed, circleId } = data
+  const { currentCycle, totalPaid, cycles, circleMeta, lendingPoolAvailable, assetsValue, myOutstandingLoan, myLoanEligibility, totalDisbursed, totalRepaid, totalContributionsCollected, endDate, settlementStatus, showSettlementBanner, endDatePassed, circleId } = data
   const progress = currentCycle && currentCycle.expectedAmount > 0
     ? Math.round((currentCycle.paidAmount / currentCycle.expectedAmount) * 100)
     : 0
@@ -216,6 +220,12 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
           </CardContent>
         </Card>
       )}
+
+      <FundHealthCard
+        totalCollected={totalContributionsCollected}
+        totalDisbursed={totalDisbursed}
+        totalRepaid={totalRepaid}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <FundsMetricCard

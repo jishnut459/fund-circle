@@ -80,6 +80,8 @@ export default async function CircleDashboardPage({
         maxByContribution: 0,
         maxByPool: 0,
         eligibleAmount: 0,
+        totalDisbursed: 0,
+        totalRepaid: 0,
       }
 
   if (isAdminOrOwner(role)) {
@@ -134,6 +136,8 @@ export default async function CircleDashboardPage({
           assetsValue: fundsSummary.assetsValue,
           totalPrincipalOutstanding: fundsSummary.totalPrincipalOutstanding,
           activeLoanCount: fundsSummary.activeLoanCount,
+          totalDisbursed: fundsSummary.totalDisbursed,
+          totalRepaid: fundsSummary.totalRepaid,
           endDate,
           settlementStatus,
           showSettlementBanner,
@@ -182,6 +186,9 @@ export default async function CircleDashboardPage({
         assetsValue: fundsSummary.assetsValue,
         myOutstandingLoan: fundsSummary.outstandingPrincipal,
         myLoanEligibility: fundsSummary.eligibleAmount,
+        totalDisbursed: fundsSummary.totalDisbursed,
+        totalRepaid: fundsSummary.totalRepaid,
+        totalContributionsCollected: fundsSummary.totalContributionsCollected,
         endDate,
         settlementStatus,
         showSettlementBanner,

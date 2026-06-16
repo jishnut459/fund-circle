@@ -4,6 +4,7 @@ import { PiggyBank, Banknote, Wallet, Users, Repeat, CheckCircle2, Clock, Circle
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { formatCurrency, formatISODate } from "@/lib/format"
+import FundHealthCard from "./FundHealthCard"
 
 interface DashboardData {
   circleMeta: {
@@ -40,6 +41,8 @@ interface DashboardData {
   assetsValue: number
   totalPrincipalOutstanding: number
   activeLoanCount: number
+  totalDisbursed: number
+  totalRepaid: number
   endDate: string | null
   settlementStatus: string | null
   showSettlementBanner: boolean
@@ -95,7 +98,7 @@ function StatChip({
 }
 
 export default function OwnerDashboard({ data }: { data: DashboardData }) {
-  const { currentCycle, totalCollected, recentCycles, circleId, circleMeta, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
+  const { currentCycle, totalCollected, recentCycles, circleId, circleMeta, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, totalDisbursed, totalRepaid, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
   const progress = currentCycle && currentCycle.totalExpected > 0
     ? Math.round((currentCycle.totalPaid / currentCycle.totalExpected) * 100)
     : 0
@@ -234,6 +237,12 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
           </CardContent>
         </Card>
       )}
+
+      <FundHealthCard
+        totalCollected={totalCollected}
+        totalDisbursed={totalDisbursed}
+        totalRepaid={totalRepaid}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <FundsMetricCard

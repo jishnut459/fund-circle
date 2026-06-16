@@ -508,6 +508,8 @@ export type LoanEligibility = {
   maxByContribution: number
   maxByPool: number
   eligibleAmount: number
+  totalDisbursed: number
+  totalRepaid: number
 }
 
 export async function getLoanEligibility(circleId: string, userId: string): Promise<ActionResult<LoanEligibility>> {
@@ -583,6 +585,44 @@ export async function getLoanEligibility(circleId: string, userId: string): Prom
     outstandingPrincipal,
   })
 
+  // Fund health: all loans ever disbursed (active + closed) and all verified repayments
+  const { data: disbursedLoans } = await supabase
+    .from("loans")
+    .select("id, approved_amount")
+    .eq("fund_circle_id", circleId)
+    .in("status", ["active", "closed"])
+  const totalDisbursed = roundCurrency(
+    (disbursedLoans ?? []).reduce((sum, l) => sum + Number(l.approved_amount ?? 0), 0)
+  )
+  const allLoanIds = (disbursedLoans ?? []).map((l) => l.id)
+
+  let totalRepaid = 0
+  if (allLoanIds.length > 0) {
+    // Loan-level payments (prepayment, foreclosure) have loan_id set and loan_installment_id null
+    // Installment-level payments (regular) have loan_installment_id set — fetch via installment ids
+    const [{ data: loanLevelPayments }, { data: installmentRows }] = await Promise.all([
+      supabase.from("loan_payments").select("amount").in("loan_id", allLoanIds).eq("status", "verified"),
+      supabase.from("loan_installments").select("id").in("loan_id", allLoanIds),
+    ])
+    const installmentIds = (installmentRows ?? []).map((i) => i.id)
+    const installmentPaymentData =
+      installmentIds.length > 0
+        ? (
+            await supabase
+              .from("loan_payments")
+              .select("amount")
+              .in("loan_installment_id", installmentIds)
+              .eq("status", "verified")
+          ).data
+        : []
+    totalRepaid = roundCurrency(
+      [...(loanLevelPayments ?? []), ...(installmentPaymentData ?? [])].reduce(
+        (sum, p) => sum + Number(p.amount),
+        0
+      )
+    )
+  }
+
   return {
     success: true,
     data: {
@@ -596,6 +636,8 @@ export async function getLoanEligibility(circleId: string, userId: string): Prom
       maxByContribution,
       maxByPool,
       eligibleAmount,
+      totalDisbursed,
+      totalRepaid,
     },
   }
 }
