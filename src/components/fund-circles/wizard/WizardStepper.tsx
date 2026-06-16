@@ -12,20 +12,20 @@ const STEPS = [
 
 export default function WizardStepper({ currentStep }: { currentStep: number }) {
   return (
-    <div className="flex items-center w-full">
+    <div className="flex items-start w-full">
       {STEPS.map((step, i) => {
         const done = step.number < currentStep
         const active = step.number === currentStep
 
         return (
-          <div key={step.number} className={cn("flex items-center", i < STEPS.length - 1 && "flex-1")}>
-            {/* Step */}
-            <div className="flex flex-col items-center gap-2">
+          <div key={step.number} className={cn("flex items-start", i < STEPS.length - 1 && "flex-1")}>
+            {/* Step bubble + label */}
+            <div className="flex flex-col items-center gap-2 shrink-0">
               <div
                 className={cn(
                   "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200",
-                  done  && "bg-teal text-white",
-                  active && "bg-teal text-white ring-2 ring-teal ring-offset-2 ring-offset-[var(--bg-page)]",
+                  done   && "bg-teal text-white",
+                  active && "bg-teal text-white ring-[3px] ring-teal/30",
                   !done && !active && "bg-[var(--bg-card)] border-2 border-[var(--border-color)] text-[var(--text-muted)]"
                 )}
               >
@@ -41,9 +41,9 @@ export default function WizardStepper({ currentStep }: { currentStep: number }) 
               </span>
             </div>
 
-            {/* Connector */}
+            {/* Connector — mt-[18px] centers it on the 36px (h-9) circle */}
             {i < STEPS.length - 1 && (
-              <div className="flex-1 h-px mx-3 mb-5 bg-[var(--border-color)]">
+              <div className="flex-1 h-px mt-[18px] mx-2 bg-[var(--border-color)]">
                 <div className={cn("h-full bg-teal transition-all duration-300", done ? "w-full" : "w-0")} />
               </div>
             )}
