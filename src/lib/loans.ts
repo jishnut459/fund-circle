@@ -103,7 +103,9 @@ export function computeEligibility(params: {
 }): { maxByContribution: number; maxByPool: number; eligibleAmount: number } {
   const maxByContribution = roundCurrency(params.totalContributionsPaid * (params.maxLoanPctOfContribution / 100))
   const maxByPool = roundCurrency(params.lendingPoolAvailable * (params.maxLoanPctOfLendingPool / 100))
-  const eligibleAmount = Math.max(0, roundCurrency(Math.min(maxByContribution, maxByPool) - params.outstandingPrincipal))
+  // One-loan-at-a-time is enforced by the UI gate; eligibility shows gross borrowing
+  // capacity so members know what they qualify for once they repay, not a net-of-outstanding figure.
+  const eligibleAmount = Math.max(0, roundCurrency(Math.min(maxByContribution, maxByPool)))
   return { maxByContribution, maxByPool, eligibleAmount }
 }
 

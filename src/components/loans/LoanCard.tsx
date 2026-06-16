@@ -14,6 +14,7 @@ export interface LoanCardData {
   nextInstallment?: { dueDate: string; remaining: number }
   purpose: string | null
   createdAt: string
+  memberName?: string
 }
 
 export default function LoanCard({
@@ -33,6 +34,9 @@ export default function LoanCard({
     <Link href={`/circles/${circleId}/loans/${loan.id}`}>
       <Card className="cursor-pointer hover:shadow-[var(--shadow-card-hover)] hover:border-teal/20 transition-all active:scale-[0.99]">
         <CardContent className="p-5">
+          {loan.memberName && (
+            <p className="text-xs font-semibold text-teal mb-2 truncate">{loan.memberName}</p>
+          )}
           <div className="flex items-start justify-between mb-3">
             <div className="min-w-0 flex-1 mr-3">
               <p className="text-2xl font-bold font-tabular text-[var(--text-primary)]">
