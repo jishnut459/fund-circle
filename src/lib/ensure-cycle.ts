@@ -13,12 +13,17 @@ export async function ensureCurrentCycle(circleId: string, actorUserId: string):
 
   const { data: circle } = await supabase
     .from("fund_circles")
-    .select("name, contribution_amount, contribution_frequency, cycle_due_day")
+    .select("name, contribution_amount, contribution_frequency, cycle_due_day, start_date, end_date")
     .eq("id", circleId)
     .single()
   if (!circle) return
 
-  const period = getCyclePeriod(circle.contribution_frequency, new Date(), circle.cycle_due_day)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  if (circle.start_date && today < new Date(circle.start_date)) return
+  if (circle.end_date && today > new Date(circle.end_date)) return
+
+  const period = getCyclePeriod(circle.contribution_frequency, today, circle.cycle_due_day)
   const cycleStart = toISODate(period.start)
 
   const { data: existing } = await supabase
