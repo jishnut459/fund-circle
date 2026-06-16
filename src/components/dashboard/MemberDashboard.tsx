@@ -130,6 +130,12 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
         </Link>
       )}
 
+      <FundHealthCard
+        totalCollected={totalContributionsCollected}
+        totalDisbursed={totalDisbursed}
+        totalRepaid={totalRepaid}
+      />
+
       {currentCycle ? (
         <Card className="mb-8">
           <CardContent className="p-5 sm:p-6">
@@ -220,12 +226,6 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
           </CardContent>
         </Card>
       )}
-
-      <FundHealthCard
-        totalCollected={totalContributionsCollected}
-        totalDisbursed={totalDisbursed}
-        totalRepaid={totalRepaid}
-      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <FundsMetricCard
