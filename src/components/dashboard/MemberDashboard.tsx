@@ -149,32 +149,23 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
       {currentCycle ? (
         <Card className="mb-8 overflow-hidden">
           <CardContent className="p-0">
-            {/* Header */}
             <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
               <div>
-                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">
-                  {currentCycle.label}
-                </h3>
+                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">{currentCycle.label}</h3>
                 {currentCycle.dueDate && (
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    Due {formatISODate(currentCycle.dueDate)}
-                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Due {formatISODate(currentCycle.dueDate)}</p>
                 )}
               </div>
               <Badge variant={STATUS_BADGE[currentCycle.status] ?? "default"} className="text-[10px] shrink-0 mt-0.5">
                 {currentCycle.status.replace(/_/g, " ")}
               </Badge>
             </div>
-
-            {/* Amount — the hero */}
             <div className="px-5 pb-4 sm:px-6">
               <div className="flex items-end justify-between gap-2 mb-1">
                 <p className="text-5xl font-bold font-tabular text-[var(--text-primary)] leading-none">
                   {formatCurrency(currentCycle.paidAmount)}
                 </p>
-                <p className="text-xl font-bold font-tabular text-teal mb-0.5">
-                  {progress}%
-                </p>
+                <p className="text-xl font-bold font-tabular text-teal mb-0.5">{progress}%</p>
               </div>
               <p className="text-sm text-[var(--text-muted)] mt-2 mb-4">
                 of {formatCurrency(currentCycle.expectedAmount)} expected
@@ -186,8 +177,6 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
                 />
               </div>
             </div>
-
-            {/* Footer meta */}
             <div className="border-t border-[var(--border-light)] px-5 py-3 sm:px-6 flex items-center gap-4 flex-wrap text-xs text-[var(--text-muted)]">
               <span className="flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5" />
@@ -208,11 +197,7 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
       ) : (
         <Card className="mb-8">
           <CardContent className="p-5 sm:p-6">
-            <EmptyState
-              icon={Banknote}
-              title="No active cycle"
-              description="Your contributions will show up here once a cycle starts."
-            />
+            <EmptyState icon={Banknote} title="No active cycle" description="Your contributions will show up here once a cycle starts." />
           </CardContent>
         </Card>
       )}

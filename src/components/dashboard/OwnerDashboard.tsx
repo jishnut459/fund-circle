@@ -124,45 +124,31 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
       {currentCycle ? (
         <Card className="mb-8 overflow-hidden">
           <CardContent className="p-0">
-            {/* Header */}
             <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
               <div>
-                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">
-                  {currentCycle.label}
-                </h3>
+                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">{currentCycle.label}</h3>
                 {currentCycle.dueDate && (
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    Due {formatISODate(currentCycle.dueDate)}
-                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Due {formatISODate(currentCycle.dueDate)}</p>
                 )}
               </div>
               <Badge variant={currentCycle.status === "open" ? "info" : "default"} className="text-[10px] shrink-0 mt-0.5">
                 {currentCycle.status}
               </Badge>
             </div>
-
-            {/* Amount — the hero */}
             <div className="px-5 pb-4 sm:px-6">
               <div className="flex items-end justify-between gap-2 mb-1">
                 <p className="text-5xl font-bold font-tabular text-[var(--text-primary)] leading-none">
                   {formatCurrency(currentCycle.totalPaid)}
                 </p>
-                <p className="text-xl font-bold font-tabular text-teal mb-0.5">
-                  {progress}%
-                </p>
+                <p className="text-xl font-bold font-tabular text-teal mb-0.5">{progress}%</p>
               </div>
               <p className="text-sm text-[var(--text-muted)] mt-2 mb-4">
                 of {formatCurrency(currentCycle.totalExpected)} expected this cycle
               </p>
               <div className="w-full h-2 bg-[var(--border-light)] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-teal rounded-full transition-all"
-                  style={{ width: `${Math.min(progress, 100)}%` }}
-                />
+                <div className="h-full bg-teal rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
               </div>
             </div>
-
-            {/* Compact member status row */}
             <div className="border-t border-[var(--border-light)] px-5 py-3 sm:px-6 flex items-center gap-5 flex-wrap">
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -192,11 +178,7 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
       ) : (
         <Card className="mb-8">
           <CardContent className="p-5 sm:p-6">
-            <EmptyState
-              icon={Banknote}
-              title="No active cycle"
-              description="Start a cycle to begin tracking contributions from members."
-            />
+            <EmptyState icon={Banknote} title="No active cycle" description="Start a cycle to begin tracking contributions from members." />
           </CardContent>
         </Card>
       )}
