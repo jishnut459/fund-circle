@@ -75,7 +75,7 @@ export default function CreateCircleWizard({ userId, userName }: { userId: strin
 
   return (
     <div className="space-y-8">
-      <div className="sticky top-0 z-10 bg-[var(--bg-page)] pt-1 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+      <div className="sticky top-0 z-10 bg-[var(--bg-page)] -mt-4 md:-mt-6 lg:-mt-8 pt-4 md:pt-6 lg:pt-8 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
         <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
             Create Fund Circle
