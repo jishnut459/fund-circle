@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlayCircle, CheckCircle2, Landmark, ArrowRight } from "lucide-react"
-import ContributionTable from "@/components/contributions/ContributionTable"
+import ContributionTableClient from "@/components/contributions/ContributionTableClient"
 import AssetRecordForm from "@/components/settlement/AssetRecordForm"
 import { closeCycleFormAction } from "@/lib/actions"
 import { formatCurrency, formatISODate, formatPercentage } from "@/lib/format"
@@ -180,14 +180,14 @@ export default async function CycleDetailPage({
         </Card>
       )}
 
-      <ContributionTable
-        contributions={contributions}
+      <ContributionTableClient
+        initialContributions={contributions}
+        initialPendingPayments={pendingPayments}
         contributionCycleId={cycleId}
         circleId={circleId}
         currentUserId={user.id}
         canEdit={canEdit}
         cycleClosed={cycleClosed}
-        pendingPayments={pendingPayments}
       />
     </div>
   )
