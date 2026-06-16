@@ -44,7 +44,7 @@ export function DatePicker({ value, onChange, placeholder = "Pick a date", disab
             !isValidDate && "text-[var(--text-muted)]"
           )}
         >
-          <span>{isValidDate && selected ? format(selected, "dd MMM yyyy") : placeholder}</span>
+          <span>{isValidDate && selected ? format(selected, "dd/MM/yyyy") : placeholder}</span>
           <CalendarIcon className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
         </button>
       </PopoverTrigger>
