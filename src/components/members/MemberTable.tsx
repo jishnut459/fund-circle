@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { removeCircleMember, changeCircleMemberRole } from "@/lib/actions"
-import { Crown, ShieldCheck, Trash2, User as UserIcon } from "lucide-react"
+import LinkManagedMemberDialog from "./LinkManagedMemberDialog"
+import { Crown, ShieldCheck, Trash2, User as UserIcon, UserCog } from "lucide-react"
 
 interface Member {
   userId: string
@@ -23,6 +24,7 @@ interface Member {
   role: string
   inCircle: boolean
   active: boolean
+  isManaged?: boolean
 }
 
 const ROLE_META = {
@@ -91,31 +93,46 @@ export default function MemberTable({
                 <p className="font-medium text-sm text-[var(--text-primary)] truncate">{m.name}</p>
                 <p className="text-xs text-[var(--text-muted)] truncate">{m.email}</p>
               </div>
-              <Badge variant={meta.variant} className="gap-1 shrink-0">
-                <RoleIcon className="h-3 w-3" />
-                {m.role}
-              </Badge>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <Badge variant={meta.variant} className="gap-1">
+                  <RoleIcon className="h-3 w-3" />
+                  {m.role}
+                </Badge>
+                {m.isManaged && (
+                  <Badge variant="default" className="gap-1">
+                    <UserCog className="h-3 w-3" />
+                    Managed
+                  </Badge>
+                )}
+              </div>
             </div>
             {canEdit && (
               <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--border-light)]">
-                {showRoleManagement ? (
-                  <Select
-                    value={m.role}
-                    onValueChange={(v) => handleChangeRole(m.userId, v)}
-                    disabled={loadingUserId === m.userId}
-                  >
-                    <SelectTrigger className="w-32 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span />
-                )}
+                <div className="flex items-center gap-2 min-w-0">
+                  {showRoleManagement ? (
+                    <Select
+                      value={m.role}
+                      onValueChange={(v) => handleChangeRole(m.userId, v)}
+                      disabled={loadingUserId === m.userId}
+                    >
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="owner">Owner</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                  {m.isManaged && currentUserId && (
+                    <LinkManagedMemberDialog
+                      managedId={m.userId}
+                      memberName={m.name}
+                      actorUserId={currentUserId}
+                    />
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"

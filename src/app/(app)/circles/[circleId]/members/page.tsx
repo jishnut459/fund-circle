@@ -93,7 +93,7 @@ export default async function CircleMembersPage({
 
   const { data: profileRows } = await supabase
     .from("profiles")
-    .select("id, name, email, avatar_url")
+    .select("id, name, email, avatar_url, is_managed, phone")
     .in("id", userIds)
 
   const profileMap = new Map(profileRows?.map((p) => [p.id, p]) ?? [])
@@ -101,14 +101,16 @@ export default async function CircleMembersPage({
   const members = rawMembers.map((m) => {
     const profile = profileMap.get(m.user_id)
     const isSelf = m.user_id === user.id
+    const isManaged = profile?.is_managed ?? false
     return {
       userId: m.user_id,
       name: profile?.name ?? (isSelf ? user.name : "Unknown"),
-      email: profile?.email ?? (isSelf ? user.email : "—"),
+      email: isManaged ? (profile?.phone ?? profile?.email ?? "No login") : (profile?.email ?? (isSelf ? user.email : "—")),
       avatarUrl: profile?.avatar_url ?? (isSelf ? user.avatarUrl : null),
       role: m.role,
       inCircle: true,
       active: m.active,
+      isManaged,
     }
   })
 

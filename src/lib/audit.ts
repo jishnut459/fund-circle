@@ -1,7 +1,7 @@
 import { createAdminSupabaseClient } from "./supabase-server"
 
 export async function writeAuditLog(params: {
-  circleId: string
+  circleId: string | null
   userId: string
   action: string
   entityType: string

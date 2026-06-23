@@ -22,10 +22,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { CheckCircle2, Loader2, Mail, Plus, UserCheck } from "lucide-react"
-import { addCircleMember, lookupCircleMemberByEmail } from "@/lib/actions"
+import { CheckCircle2, Loader2, Mail, Plus, UserCheck, UserCog } from "lucide-react"
+import { addCircleMember, addManagedMember, lookupCircleMemberByEmail } from "@/lib/actions"
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+type Mode = "invite" | "managed"
 
 interface LookupResult {
   exists: boolean
@@ -44,8 +46,10 @@ export default function AddMemberDialog({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<Mode>("invite")
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
+  const [phone, setPhone] = useState("")
   const [role, setRole] = useState<"member" | "admin">("member")
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -56,12 +60,12 @@ export default function AddMemberDialog({
   const trimmedEmail = email.trim()
   const isValidEmail = EMAIL_PATTERN.test(trimmedEmail)
   const lookupResult = lookup?.forEmail === trimmedEmail ? lookup.data : null
-  const isChecking = checking && isValidEmail
+  const isChecking = checking && isValidEmail && mode === "invite"
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    if (!isValidEmail) return
+    if (mode !== "invite" || !isValidEmail) return
 
     debounceRef.current = setTimeout(async () => {
       setChecking(true)
@@ -73,12 +77,21 @@ export default function AddMemberDialog({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [trimmedEmail, circleId, isValidEmail])
+  }, [trimmedEmail, circleId, isValidEmail, mode])
 
   const resetForm = () => {
     setEmail("")
     setFullName("")
+    setPhone("")
     setRole("member")
+    setError("")
+    setLookup(null)
+    setChecking(false)
+    setMode("invite")
+  }
+
+  const switchMode = (next: Mode) => {
+    setMode(next)
     setError("")
     setLookup(null)
     setChecking(false)
@@ -86,33 +99,59 @@ export default function AddMemberDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isValidEmail || lookupResult?.alreadyMember || loading) return
+    if (loading) return
 
-    setLoading(true)
-    setError("")
-
-    const result = await addCircleMember({
-      circleId,
-      email: trimmedEmail,
-      fullName: fullName.trim() || undefined,
-      role,
-      actorUserId: currentUserId,
-    })
-
-    setLoading(false)
-
-    if (!result.success) {
-      setError(result.error)
-      return
-    }
-
-    if (result.data.status === "linked") {
-      toast.success(`${lookupResult?.name ?? "Member"} added to the circle`)
-    } else if (result.data.emailSent) {
-      toast.success(`Invite sent to ${trimmedEmail}`)
+    if (mode === "invite") {
+      if (!isValidEmail || lookupResult?.alreadyMember) return
+      setLoading(true)
+      setError("")
+      const result = await addCircleMember({
+        circleId,
+        email: trimmedEmail,
+        fullName: fullName.trim() || undefined,
+        role,
+        actorUserId: currentUserId,
+      })
+      setLoading(false)
+      if (!result.success) {
+        setError(result.error)
+        return
+      }
+      if (result.data.status === "linked") {
+        toast.success(`${lookupResult?.name ?? "Member"} added to the circle`)
+      } else if (result.data.emailSent) {
+        toast.success(`Invite sent to ${trimmedEmail}`)
+      } else {
+        toast.success("Invite saved", {
+          description: `We couldn't send an email automatically. Ask ${trimmedEmail} to sign in with Google to join.`,
+        })
+      }
     } else {
-      toast.success("Invite saved", {
-        description: `We couldn't send an email automatically. Ask ${trimmedEmail} to sign in with Google to join.`,
+      if (!fullName.trim()) {
+        setError("Enter a name for the member")
+        return
+      }
+      if (trimmedEmail && !isValidEmail) {
+        setError("Enter a valid email address")
+        return
+      }
+      setLoading(true)
+      setError("")
+      const result = await addManagedMember({
+        circleId,
+        name: fullName.trim(),
+        phone: phone.trim() || undefined,
+        email: trimmedEmail || undefined,
+        role,
+        actorUserId: currentUserId,
+      })
+      setLoading(false)
+      if (!result.success) {
+        setError(result.error)
+        return
+      }
+      toast.success(`${fullName.trim()} added`, {
+        description: "You can record payments and loans on their behalf.",
       })
     }
 
@@ -121,7 +160,7 @@ export default function AddMemberDialog({
     router.refresh()
   }
 
-  const submitLabel = (() => {
+  const inviteSubmitLabel = (() => {
     if (loading) return "Saving..."
     if (lookupResult?.alreadyMember) return "Already a member"
     if (lookupResult?.exists) return "Add to Circle"
@@ -147,77 +186,154 @@ export default function AddMemberDialog({
         <DialogHeader>
           <DialogTitle>Add Member</DialogTitle>
           <DialogDescription>
-            Enter their email. Existing Fund Circle members are added instantly — otherwise we&apos;ll email them an invite to join.
+            {mode === "invite"
+              ? "Invite someone by email — existing Fund Circle members are added instantly, otherwise we'll email them an invite."
+              : "Add someone who won't use the app. You record their payments and loans on their behalf."}
           </DialogDescription>
         </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-[var(--border-light)]/40 p-1">
+          <button
+            type="button"
+            onClick={() => switchMode("invite")}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+              mode === "invite"
+                ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-card)]"
+                : "text-[var(--text-muted)]"
+            }`}
+          >
+            <Mail className="h-4 w-4" />
+            Invite by email
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("managed")}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+              mode === "managed"
+                ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-card)]"
+                : "text-[var(--text-muted)]"
+            }`}
+          >
+            <UserCog className="h-4 w-4" />
+            Managed member
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="member@example.com"
-                disabled={loading}
-                autoFocus
-                className="pr-9"
-              />
-              {isChecking && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-[var(--text-muted)]" />
-              )}
-            </div>
-          </div>
-
-          {isValidEmail && !isChecking && lookupResult?.alreadyMember && (
-            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
-              <UserCheck className="h-4 w-4 flex-shrink-0" />
-              <span>{lookupResult.name ?? "This person"} is already a member of this circle.</span>
-            </div>
-          )}
-
-          {isValidEmail && !isChecking && lookupResult?.exists && !lookupResult.alreadyMember && (
-            <div className="flex items-center gap-3 rounded-xl border border-[var(--border-light)] bg-[var(--border-light)]/40 px-3 py-2.5">
-              <Avatar className="h-9 w-9">
-                {lookupResult.avatarUrl && <AvatarImage src={lookupResult.avatarUrl} alt={lookupResult.name ?? ""} />}
-                <AvatarFallback>{(lookupResult.name ?? "?").charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-[var(--text-primary)] truncate">{lookupResult.name}</p>
-                <p className="text-xs text-[var(--text-muted)]">Has a Fund Circle account — will be added immediately</p>
+          {mode === "invite" ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="member@example.com"
+                    disabled={loading}
+                    autoFocus
+                    className="pr-9"
+                  />
+                  {isChecking && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-[var(--text-muted)]" />
+                  )}
+                </div>
               </div>
-              <CheckCircle2 className="h-4 w-4 text-teal flex-shrink-0 ml-auto" />
-            </div>
-          )}
 
-          {isValidEmail && !isChecking && !lookupResult?.exists && lookupResult?.invitePending && (
-            <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
-              <Mail className="h-4 w-4 flex-shrink-0" />
-              <span>An invite is already pending for this email — resending will refresh it.</span>
-            </div>
-          )}
+              {isValidEmail && !isChecking && lookupResult?.alreadyMember && (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                  <UserCheck className="h-4 w-4 flex-shrink-0" />
+                  <span>{lookupResult.name ?? "This person"} is already a member of this circle.</span>
+                </div>
+              )}
 
-          {isValidEmail && !isChecking && !lookupResult?.exists && !lookupResult?.invitePending && (
-            <div className="flex items-center gap-2 rounded-xl border border-[var(--border-light)] bg-[var(--border-light)]/40 px-3 py-2.5 text-sm text-[var(--text-secondary)]">
-              <Mail className="h-4 w-4 flex-shrink-0 text-teal" />
-              <span>No Fund Circle account yet — we&apos;ll email an invite to join.</span>
-            </div>
-          )}
+              {isValidEmail && !isChecking && lookupResult?.exists && !lookupResult.alreadyMember && (
+                <div className="flex items-center gap-3 rounded-xl border border-[var(--border-light)] bg-[var(--border-light)]/40 px-3 py-2.5">
+                  <Avatar className="h-9 w-9">
+                    {lookupResult.avatarUrl && <AvatarImage src={lookupResult.avatarUrl} alt={lookupResult.name ?? ""} />}
+                    <AvatarFallback>{(lookupResult.name ?? "?").charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{lookupResult.name}</p>
+                    <p className="text-xs text-[var(--text-muted)]">Has a Fund Circle account — will be added immediately</p>
+                  </div>
+                  <CheckCircle2 className="h-4 w-4 text-teal flex-shrink-0 ml-auto" />
+                </div>
+              )}
 
-          {isValidEmail && !lookupResult?.exists && (
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Name <span className="text-[var(--text-muted)] font-normal">(optional)</span>
-              </Label>
-              <Input
-                id="name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="John Doe"
-                disabled={loading}
-              />
-            </div>
+              {isValidEmail && !isChecking && !lookupResult?.exists && lookupResult?.invitePending && (
+                <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+                  <Mail className="h-4 w-4 flex-shrink-0" />
+                  <span>An invite is already pending for this email — resending will refresh it.</span>
+                </div>
+              )}
+
+              {isValidEmail && !isChecking && !lookupResult?.exists && !lookupResult?.invitePending && (
+                <div className="flex items-center gap-2 rounded-xl border border-[var(--border-light)] bg-[var(--border-light)]/40 px-3 py-2.5 text-sm text-[var(--text-secondary)]">
+                  <Mail className="h-4 w-4 flex-shrink-0 text-teal" />
+                  <span>No Fund Circle account yet — we&apos;ll email an invite to join.</span>
+                </div>
+              )}
+
+              {isValidEmail && !lookupResult?.exists && (
+                <div className="space-y-2">
+                  <Label htmlFor="name">
+                    Name <span className="text-[var(--text-muted)] font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    disabled={loading}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="managed-name">Name</Label>
+                <Input
+                  id="managed-name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="John Doe"
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="managed-phone">
+                  Phone <span className="text-[var(--text-muted)] font-normal">(optional)</span>
+                </Label>
+                <Input
+                  id="managed-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="managed-email">
+                  Email <span className="text-[var(--text-muted)] font-normal">(optional)</span>
+                </Label>
+                <Input
+                  id="managed-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="member@example.com"
+                  disabled={loading}
+                />
+                <p className="text-xs text-[var(--text-muted)]">
+                  Add an email later to link this member to their own login.
+                </p>
+              </div>
+            </>
           )}
 
           <div className="space-y-2">
@@ -225,7 +341,7 @@ export default function AddMemberDialog({
             <Select
               value={role}
               onValueChange={(value) => setRole(value as "member" | "admin")}
-              disabled={loading || lookupResult?.alreadyMember}
+              disabled={loading || (mode === "invite" && lookupResult?.alreadyMember)}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -241,10 +357,15 @@ export default function AddMemberDialog({
 
           <Button
             type="submit"
-            disabled={loading || !isValidEmail || isChecking || lookupResult?.alreadyMember}
+            disabled={
+              loading ||
+              (mode === "invite"
+                ? !isValidEmail || isChecking || lookupResult?.alreadyMember
+                : !fullName.trim())
+            }
             className="w-full"
           >
-            {submitLabel}
+            {mode === "invite" ? inviteSubmitLabel : loading ? "Saving..." : "Add Member"}
           </Button>
         </form>
       </DialogContent>

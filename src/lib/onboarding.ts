@@ -1,6 +1,7 @@
 import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { writeAuditLog } from "@/lib/audit"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
+import { rekeyManagedMember } from "@/lib/claim"
 
 interface GoogleUserMetadata {
   full_name?: string
@@ -16,6 +17,16 @@ export async function resolveUserOnSignIn(
 ): Promise<void> {
   const supabase = createAdminSupabaseClient()
 
+  // Was this person previously added as a managed (offline) member? Find the
+  // managed profile by email before creating the real one, so we can re-key its
+  // history onto the new account below.
+  const { data: managedMatch } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", email.toLowerCase())
+    .eq("is_managed", true)
+    .maybeSingle()
+
   await supabase.from("profiles").upsert(
     {
       id: userId,
@@ -25,6 +36,10 @@ export async function resolveUserOnSignIn(
     },
     { onConflict: "id" }
   )
+
+  if (managedMatch && managedMatch.id !== userId) {
+    await rekeyManagedMember(managedMatch.id, userId, userId)
+  }
 
   const { data: invites } = await supabase
     .from("org_invites")

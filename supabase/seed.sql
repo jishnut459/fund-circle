@@ -48,11 +48,22 @@ delete from auth.users;
 -- Phase 3: Create all tables
 -- ========================================
 
+-- profiles is the canonical member-identity table. For app users
+-- profiles.id equals auth.users.id (set explicitly on sign-in). For
+-- managed (offline / non-app) members the id is self-generated and
+-- there is no matching auth.users row. The auth.users FK is therefore
+-- deliberately absent (see 0008_managed_members.sql).
 create table profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key default gen_random_uuid(),
   email text,
   name text,
   avatar_url text,
+  is_managed boolean not null default false,
+  phone text,
+  managed_by uuid references profiles(id) on delete set null,
+  created_in_circle uuid,
+  claimed_at timestamptz,
+  claimed_by uuid,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -95,10 +106,16 @@ create table fund_circles (
   constraint fc_dates_valid check (start_date is null or end_date is null or end_date >= start_date)
 );
 
+-- profiles.created_in_circle FK is added now that fund_circles exists
+-- (profiles is created earlier so it can be referenced by membership rows).
+alter table profiles
+  add constraint profiles_created_in_circle_fkey
+  foreign key (created_in_circle) references fund_circles(id) on delete set null;
+
 create table fund_circle_members (
   id uuid primary key default gen_random_uuid(),
   fund_circle_id uuid not null references fund_circles(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
   role text not null default 'member' check (role in ('owner','admin','member')),
   joined_at timestamptz default now(),
   active boolean default true,
@@ -120,7 +137,7 @@ create table contribution_cycles (
 create table contributions (
   id uuid primary key default gen_random_uuid(),
   contribution_cycle_id uuid not null references contribution_cycles(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
   expected_amount numeric(12,2) not null,
   paid_amount numeric(12,2) not null default 0,
   late_fee numeric(12,2) not null default 0 check (late_fee >= 0),
@@ -144,7 +161,7 @@ create table contribution_payments (
 create table loans (
   id uuid primary key default gen_random_uuid(),
   fund_circle_id uuid not null references fund_circles(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
   status text not null default 'pending_request'
     check (status in ('pending_request','rejected','cancelled','active','closed')),
   requested_amount numeric(12,2) not null check (requested_amount > 0),
@@ -153,7 +170,7 @@ create table loans (
   approved_term_months int check (approved_term_months > 0),
   interest_rate_pct numeric(5,2),
   purpose text,
-  requested_by uuid not null references auth.users(id),
+  requested_by uuid not null references profiles(id),
   reviewed_by uuid references auth.users(id),
   reviewed_at timestamptz,
   issued_at timestamptz,
@@ -217,7 +234,7 @@ create table circle_settlements (
 create table circle_settlement_payouts (
   id uuid primary key default gen_random_uuid(),
   circle_settlement_id uuid not null references circle_settlements(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
   contribution_total numeric(12,2) not null,
   share_amount numeric(12,2) not null,
   disbursed boolean not null default false,
@@ -290,6 +307,38 @@ create policy "Users can view their own profile"
   on profiles for select using (auth.uid() = id);
 create policy "Users can update their own profile"
   on profiles for update using (auth.uid() = id);
+-- A profile is visible to anyone who shares a circle with it, so managed
+-- (offline / non-app) members render for their circle co-members.
+create policy "profiles_select_circle_comember" on profiles for select
+  using (exists (
+    select 1
+    from fund_circle_members me
+    join fund_circle_members them
+      on them.fund_circle_id = me.fund_circle_id
+    where me.user_id = auth.uid()
+      and them.user_id = profiles.id
+  ));
+-- Admins/owners may create and update managed profiles only.
+create policy "profiles_insert_admin_managed" on profiles for insert
+  with check (
+    is_managed = true
+    and exists (
+      select 1 from fund_circle_members fcm
+      where fcm.user_id = auth.uid()
+        and fcm.role in ('owner','admin')
+        and fcm.active = true
+    )
+  );
+create policy "profiles_update_admin_managed" on profiles for update
+  using (
+    is_managed = true
+    and exists (
+      select 1 from fund_circle_members fcm
+      where fcm.user_id = auth.uid()
+        and fcm.role in ('owner','admin')
+        and fcm.active = true
+    )
+  );
 
 -- --- fund_circles ---
 create policy "fc_select_member" on fund_circles for select

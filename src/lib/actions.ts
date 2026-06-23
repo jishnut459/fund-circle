@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server"
 import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
+import { rekeyManagedMember } from "@/lib/claim"
 import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
 import { calculateAccruedInterest, calculateDailyAccruedInterest, calculateOutstandingPrincipal, computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, monthsToPayOff, roundCurrency } from "@/lib/loans"
@@ -202,6 +203,101 @@ export async function addCircleMember(params: { circleId: string; email: string;
   await writeAuditLog({ circleId, userId: actorUserId, action: "invite_sent", entityType: "org_invites", newValue: { email, role, circleName: circle.name } })
   revalidatePath(`/circles/${circleId}/members`)
   return { success: true, data: { status: "invited", emailSent } }
+}
+
+// Adds a managed (offline / non-app) member: a profiles row with no auth.users
+// login, owned by the admin who created it. Admins act on their behalf for
+// everything (contributions, loans, EMIs). They can be linked to a real account
+// later via linkManagedMember.
+export async function addManagedMember(params: { circleId: string; name: string; phone?: string; email?: string; role: "admin" | "member"; actorUserId: string }): Promise<ActionResult<{ memberId: string }>> {
+  const { circleId, role, actorUserId } = params
+  const name = params.name?.trim() ?? ""
+  const phone = params.phone?.trim() || null
+  const email = params.email?.trim().toLowerCase() || null
+  if (!circleId || !name || !role || !actorUserId) return { success: false, error: "Enter a name for the member" }
+  if (!["admin", "member"].includes(role)) return { success: false, error: "Invalid role" }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: "Enter a valid email address" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: actorMembership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!actorMembership || !isAdminOrOwner(actorMembership.role)) return { success: false, error: "You don't have permission to add members to this circle." }
+
+  const { data: circle } = await supabase.from("fund_circles").select("max_members").eq("id", circleId).single()
+  if (!circle) return { success: false, error: "Circle not found" }
+
+  const { count: memberCount } = await supabase.from("fund_circle_members").select("*", { count: "exact", head: true }).eq("fund_circle_id", circleId).eq("active", true)
+  if (memberCount != null && memberCount >= (circle.max_members ?? 20)) return { success: false, error: `Member limit reached (${circle.max_members ?? 20} per circle).` }
+
+  // An email collision means a real account (or another managed record) already
+  // exists — steer the admin to the invite flow rather than creating a duplicate.
+  if (email) {
+    const { data: existingProfile } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle()
+    if (existingProfile) return { success: false, error: "Someone with that email already exists — use \"Invite by email\" instead." }
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .insert({ name, email, phone, is_managed: true, managed_by: actorUserId, created_in_circle: circleId })
+    .select("id")
+    .single()
+  if (profileError || !profile) return { success: false, error: "Failed to create member" }
+
+  const { error: memberError } = await supabase.from("fund_circle_members").insert({ fund_circle_id: circleId, user_id: profile.id, role, active: true })
+  if (memberError) {
+    await supabase.from("profiles").delete().eq("id", profile.id)
+    return { success: false, error: "Failed to add member to circle" }
+  }
+
+  await addMemberToOpenCycles(circleId, profile.id)
+
+  await writeAuditLog({ circleId, userId: actorUserId, action: "managed_member_added", entityType: "fund_circle_member", entityId: profile.id, newValue: { name, role, phone, email } })
+  revalidatePath(`/circles/${circleId}/members`)
+  return { success: true, data: { memberId: profile.id } }
+}
+
+// Links a managed member to a real account. If someone already signed up with
+// the given email, their history is re-keyed onto that account immediately.
+// Otherwise the email is stored on the managed profile and an invite is sent —
+// when they sign in, resolveUserOnSignIn re-keys it automatically.
+export async function linkManagedMember(managedId: string, targetEmail: string, actorUserId: string): Promise<ActionResult<{ linked: boolean }>> {
+  const email = targetEmail.trim().toLowerCase()
+  if (!managedId || !email || !actorUserId) return { success: false, error: "Enter an email to link" }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: "Enter a valid email address" }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: managed } = await supabase.from("profiles").select("id, is_managed, created_in_circle, name").eq("id", managedId).maybeSingle()
+  if (!managed || !managed.is_managed) return { success: false, error: "That isn't a managed member." }
+
+  const { data: managedMembership } = await supabase.from("fund_circle_members").select("fund_circle_id").eq("user_id", managedId).limit(1).maybeSingle()
+  const gateCircle = managed.created_in_circle ?? managedMembership?.fund_circle_id
+  if (!gateCircle) return { success: false, error: "This member isn't in a circle." }
+
+  const permissionError = await assertCircleAdmin(gateCircle, actorUserId)
+  if (permissionError) return { success: false, error: permissionError }
+
+  // An existing real account with this email → link now.
+  const { data: realProfile } = await supabase.from("profiles").select("id").eq("email", email).eq("is_managed", false).maybeSingle()
+  if (realProfile) {
+    const result = await rekeyManagedMember(managedId, realProfile.id, actorUserId)
+    if (!result.success) return { success: false, error: result.error }
+    revalidatePath(`/circles/${gateCircle}/members`)
+    return { success: true, data: { linked: true } }
+  }
+
+  // Guard against assigning an email already used by another (managed) profile.
+  const { data: emailClash } = await supabase.from("profiles").select("id").eq("email", email).neq("id", managedId).maybeSingle()
+  if (emailClash) return { success: false, error: "Someone with that email already exists." }
+
+  // Not signed up yet: stamp the email so sign-in links it, and invite them.
+  await supabase.from("profiles").update({ email }).eq("id", managedId)
+  const { data: circle } = await supabase.from("fund_circles").select("name").eq("id", gateCircle).single()
+  const emailSent = await sendCircleInviteEmail(email, circle?.name ?? "your fund circle", managed.name ?? "")
+
+  await writeAuditLog({ circleId: gateCircle, userId: actorUserId, action: "managed_member_link_pending", entityType: "fund_circle_member", entityId: managedId, newValue: { email, emailSent } })
+  revalidatePath(`/circles/${gateCircle}/members`)
+  return { success: true, data: { linked: false } }
 }
 
 export async function revokeInvite(circleId: string, inviteId: string, actorUserId: string): Promise<ActionResult> {
@@ -722,6 +818,93 @@ export async function requestLoan(circleId: string, userId: string, amount: numb
     entityType: "loan",
     entityId: loan.id,
     newValue: { requestedAmount: amount, requestedTermMonths: termMonths, purpose },
+  })
+
+  revalidatePath(`/circles/${circleId}/loans`)
+  return { success: true, data: { loanId: loan.id } }
+}
+
+// Admin override: open a loan request on behalf of a member (typically a managed
+// member with no app login). Mirrors requestLoan but is gated to admins/owners
+// and records who it was created for. The admin can then approve it via the
+// normal review flow (reviewLoanRequest only blocks reviewing your OWN request).
+export async function adminRequestLoanOnBehalf(circleId: string, memberId: string, amount: number, termMonths: number, purpose: string, actorUserId: string): Promise<ActionResult<{ loanId: string }>> {
+  if (!circleId || !memberId || !actorUserId) return { success: false, error: "Missing required fields" }
+  if (!amount || amount <= 0) return { success: false, error: "Enter a loan amount greater than zero" }
+  if (!termMonths || termMonths <= 0) return { success: false, error: "Enter a loan term of at least 1 month" }
+
+  const permissionError = await assertCircleAdmin(circleId, actorUserId)
+  if (permissionError) return { success: false, error: permissionError }
+
+  const supabase = createAdminSupabaseClient()
+
+  const { data: targetMembership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", memberId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!targetMembership) return { success: false, error: "That member isn't part of this circle." }
+
+  const { data: blocking } = await supabase
+    .from("loans")
+    .select("status")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", memberId)
+    .in("status", ["pending_request", "active"])
+    .maybeSingle()
+  if (blocking) {
+    return {
+      success: false,
+      error: blocking.status === "active"
+        ? "This member has an active loan. It must be repaid before requesting another."
+        : "This member already has a pending loan request.",
+    }
+  }
+
+  const { data: circle, error: circleError } = await supabase
+    .from("fund_circles")
+    .select("end_date")
+    .eq("id", circleId)
+    .single()
+  if (circleError || !circle) return { success: false, error: "Fund circle not found" }
+
+  const eligibility = await getLoanEligibility(circleId, memberId)
+  if (!eligibility.success) return { success: false, error: eligibility.error }
+  if (amount > eligibility.data.eligibleAmount) {
+    return { success: false, error: `This amount exceeds the member's loan eligibility of ${formatCurrency(eligibility.data.eligibleAmount)}` }
+  }
+
+  if (circle.end_date) {
+    const lastInstallment = toISODate(finalInstallmentDate(new Date(), termMonths))
+    if (lastInstallment > circle.end_date) {
+      return { success: false, error: "This term would push the final repayment past the circle's end date" }
+    }
+  }
+
+  const { data: loan, error: loanError } = await supabase
+    .from("loans")
+    .insert({
+      fund_circle_id: circleId,
+      user_id: memberId,
+      status: "pending_request",
+      requested_amount: amount,
+      requested_term_months: termMonths,
+      purpose: purpose || null,
+      requested_by: memberId,
+    })
+    .select("id")
+    .single()
+  if (loanError || !loan) return { success: false, error: "Failed to create loan request" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_request_created_on_behalf",
+    entityType: "loan",
+    entityId: loan.id,
+    newValue: { onBehalfOf: memberId, requestedAmount: amount, requestedTermMonths: termMonths, purpose },
   })
 
   revalidatePath(`/circles/${circleId}/loans`)

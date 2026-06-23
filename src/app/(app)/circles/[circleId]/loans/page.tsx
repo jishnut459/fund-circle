@@ -9,6 +9,7 @@ import LoanCard, { type LoanCardData } from "@/components/loans/LoanCard"
 import EligibilityWidget from "@/components/loans/EligibilityWidget"
 import CancelLoanRequestButton from "@/components/loans/CancelLoanRequestButton"
 import RequestLoanButton from "@/components/loans/RequestLoanButton"
+import RequestLoanForMemberDialog, { type PickableMember } from "@/components/loans/RequestLoanForMemberDialog"
 import { EmptyState } from "@/components/ui/empty-state"
 import { formatCurrency } from "@/lib/format"
 import { HandCoins } from "lucide-react"
@@ -108,7 +109,28 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
 
   const allActiveLoanCards: LoanCardData[] = []
 
+  // Members an admin can open a loan request for (everyone but themselves).
+  let pickableMembers: PickableMember[] = []
+
   if (isAdmin) {
+    const { data: memberRows } = await supabase
+      .from("fund_circle_members")
+      .select("user_id")
+      .eq("fund_circle_id", circleId)
+      .eq("active", true)
+      .neq("user_id", user.id)
+    const memberUserIds = (memberRows ?? []).map((m) => m.user_id)
+    const { data: memberProfiles } =
+      memberUserIds.length > 0
+        ? await supabase.from("profiles").select("id, name, is_managed").in("id", memberUserIds)
+        : { data: [] }
+    const memberProfileMap = new Map((memberProfiles ?? []).map((p) => [p.id, p]))
+    pickableMembers = memberUserIds.map((id) => ({
+      id,
+      name: memberProfileMap.get(id)?.name ?? "Unknown",
+      isManaged: memberProfileMap.get(id)?.is_managed ?? false,
+    }))
+
     // Pending requests from other members
     const { data: pendingLoans } = await supabase
       .from("loans")
@@ -205,11 +227,21 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
             {isAdmin ? "Manage loan requests and track active loans." : "Request a loan or track your repayments."}
           </p>
         </div>
-        <RequestLoanButton
-          href={`/circles/${circleId}/loans/new`}
-          disabled={!canRequestLoan}
-          disabledReason={requestBlockedReason}
-        />
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <RequestLoanForMemberDialog
+              circleId={circleId}
+              actorUserId={user.id}
+              members={pickableMembers}
+              maxTermMonths={maxTermMonths}
+            />
+          )}
+          <RequestLoanButton
+            href={`/circles/${circleId}/loans/new`}
+            disabled={!canRequestLoan}
+            disabledReason={requestBlockedReason}
+          />
+        </div>
       </div>
 
       {/* My Loans — shown first, always */}

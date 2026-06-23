@@ -58,6 +58,22 @@ function formatAuditAction(entry: AuditEntry): string {
     case "member_removed_from_circle": {
       return `${entry.userName} removed a member from the circle`
     }
+    case "managed_member_added": {
+      const v = entry.newValue as { name: string; role: string } | null
+      return `${entry.userName} added ${v?.name ?? "a managed member"} (no app login) to the circle`
+    }
+    case "loan_request_created_on_behalf": {
+      const v = entry.newValue as { requestedAmount: number; requestedTermMonths: number } | null
+      return `${entry.userName} created a loan request of ${formatCurrency(v?.requestedAmount ?? 0)} on a member's behalf`
+    }
+    case "managed_member_link_pending": {
+      const v = entry.newValue as { email: string } | null
+      return `${entry.userName} invited a managed member to claim their account${v?.email ? ` (${v.email})` : ""}`
+    }
+    case "managed_member_claimed": {
+      const v = entry.newValue as { email: string } | null
+      return `A managed member's history was linked to their new account${v?.email ? ` (${v.email})` : ""}`
+    }
     case "org_created":
       return `${entry.userName} created the organization`
     case "fund_circle_created": {
