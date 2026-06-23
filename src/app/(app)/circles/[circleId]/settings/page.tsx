@@ -51,17 +51,28 @@ export default async function CircleSettingsPage({
     .eq("fund_circle_id", circleId)
     .eq("active", true)
 
-  const { data: admins } = await supabase
+  const { data: adminMemberships } = await supabase
     .from("fund_circle_members")
-    .select("user_id, role, profiles!inner(name, email)")
+    .select("user_id, role")
     .eq("fund_circle_id", circleId)
     .eq("active", true)
     .in("role", ["owner", "admin"])
 
-  const adminList = admins?.map((a) => {
-    const p = a.profiles as unknown as { name: string; email: string }
-    return { userId: a.user_id, name: p.name, email: p.email, role: a.role }
-  }) ?? []
+  const adminUserIds = (adminMemberships ?? []).map((member) => member.user_id)
+  const { data: profileRows } = adminUserIds.length > 0
+    ? await supabase.from("profiles").select("id, name, email").in("id", adminUserIds)
+    : { data: [] }
+
+  const profileMap = new Map((profileRows ?? []).map((profile) => [profile.id, profile]))
+  const adminList = (adminMemberships ?? []).map((member) => {
+    const profile = profileMap.get(member.user_id)
+    return {
+      userId: member.user_id,
+      name: profile?.name ?? "Unknown",
+      email: profile?.email ?? "—",
+      role: member.role,
+    }
+  })
 
   return (
     <div className="space-y-6">
