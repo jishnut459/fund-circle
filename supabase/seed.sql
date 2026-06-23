@@ -123,6 +123,7 @@ create table contributions (
   user_id uuid not null references auth.users(id) on delete cascade,
   expected_amount numeric(12,2) not null,
   paid_amount numeric(12,2) not null default 0,
+  late_fee numeric(12,2) not null default 0 check (late_fee >= 0),
   payment_date date,
   notes text,
   created_at timestamptz default now(),
@@ -582,8 +583,8 @@ select
   c.*,
   case
     when c.paid_amount = 0 then 'unpaid'
-    when c.paid_amount < c.expected_amount then 'partially_paid'
-    when c.paid_amount = c.expected_amount then 'paid'
+    when c.paid_amount < c.expected_amount + c.late_fee then 'partially_paid'
+    when c.paid_amount = c.expected_amount + c.late_fee then 'paid'
     else 'overpaid'
   end as status
 from contributions c;

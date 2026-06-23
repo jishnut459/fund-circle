@@ -26,7 +26,7 @@ export default function FundHealthCard({
             {formatCurrency(currentValue)}
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-2.5">
-            contributions collected + interest earned − outstanding loan principal
+            Money the circle holds right now
           </p>
         </div>
 

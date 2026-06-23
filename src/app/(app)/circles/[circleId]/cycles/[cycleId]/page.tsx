@@ -9,6 +9,7 @@ import { PlayCircle, CheckCircle2, Landmark, ArrowRight } from "lucide-react"
 import ContributionTableClient from "@/components/contributions/ContributionTableClient"
 import AssetRecordForm from "@/components/settlement/AssetRecordForm"
 import { closeCycleFormAction } from "@/lib/actions"
+import { isCycleOverdue } from "@/lib/cycles"
 import { formatCurrency, formatISODate, formatPercentage } from "@/lib/format"
 import Link from "next/link"
 
@@ -44,7 +45,7 @@ export default async function CycleDetailPage({
       .single(),
     supabase
       .from("fund_circles")
-      .select("asset_allocation_pct")
+      .select("asset_allocation_pct, contribution_late_fee, contribution_grace_days")
       .eq("id", circleId)
       .single(),
   ])
@@ -52,10 +53,13 @@ export default async function CycleDetailPage({
   if (!cycle) redirect(`/circles/${circleId}/cycles`)
 
   const cycleClosed = cycle.status === "closed"
+  const lateFeeAmount = Number(circleMeta?.contribution_late_fee ?? 0)
+  const graceDays = Number(circleMeta?.contribution_grace_days ?? 0)
+  const cycleOverdue = isCycleOverdue(cycle.due_date, graceDays)
 
   const { data: rawContribs } = await supabase
     .from("contributions_with_status")
-    .select("id, user_id, expected_amount, paid_amount, payment_date, notes, status")
+    .select("id, user_id, expected_amount, paid_amount, late_fee, payment_date, notes, status")
     .eq("contribution_cycle_id", cycleId)
 
   const contribIds = (rawContribs ?? []).map((c) => c.id)
@@ -91,6 +95,12 @@ export default async function CycleDetailPage({
 
   const contributions = (rawContribs ?? []).map((c) => {
     const profile = profileMap.get(c.user_id)
+    const storedLateFee = Number(c.late_fee)
+    const fullyPaid = c.status === "paid" || c.status === "overpaid"
+    // A locked-in fee always wins; otherwise show the prospective fee an
+    // overdue, not-yet-settled contribution will incur on payment.
+    const effectiveLateFee =
+      storedLateFee > 0 ? storedLateFee : cycleOverdue && !fullyPaid && lateFeeAmount > 0 ? lateFeeAmount : 0
     return {
       id: c.id,
       userId: c.user_id,
@@ -98,20 +108,27 @@ export default async function CycleDetailPage({
       avatarUrl: profile?.avatar_url ?? null,
       expectedAmount: Number(c.expected_amount),
       paidAmount: Number(c.paid_amount),
+      lateFee: effectiveLateFee,
       paymentDate: c.payment_date,
       notes: c.notes,
       status: c.status,
     }
   })
 
-  const totalExpected = contributions.reduce((s, c) => s + c.expectedAmount, 0)
+  const totalExpected = contributions.reduce((s, c) => s + c.expectedAmount + c.lateFee, 0)
   const totalPaid = contributions.reduce((s, c) => s + c.paidAmount, 0)
   const progress = formatPercentage(totalPaid, totalExpected)
   const assetAllocationPct = Number(circleMeta?.asset_allocation_pct ?? 0)
   const suggestedAssetAmount = Math.round(totalPaid * assetAllocationPct) / 100
 
+  const fullyPaidCount = contributions.filter((c) => c.status === "paid" || c.status === "overpaid").length
+  const partialCount = contributions.filter((c) => c.status === "partially_paid").length
+  const unpaidCount = contributions.filter((c) => c.status === "unpaid").length
+  const remainingToCollect = Math.max(0, totalExpected - totalPaid)
+  const membersOutstanding = partialCount + unpaidCount
+
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 pb-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -140,6 +157,28 @@ export default async function CycleDetailPage({
               className="h-full bg-teal rounded-full transition-all"
               style={{ width: `${Math.min(progress, 100)}%` }}
             />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs">
+            {fullyPaidCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{fullyPaidCount} paid
+              </span>
+            )}
+            {partialCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{partialCount} partial
+              </span>
+            )}
+            {unpaidCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 font-medium text-[var(--text-muted)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />{unpaidCount} unpaid
+              </span>
+            )}
+            {remainingToCollect > 0 && (
+              <span className="text-[var(--text-secondary)]">
+                · <span className="font-semibold font-tabular text-[var(--text-primary)]">{formatCurrency(remainingToCollect)}</span> to collect from {membersOutstanding} member{membersOutstanding > 1 ? "s" : ""}
+              </span>
+            )}
           </div>
         </div>
         {canEdit && !cycleClosed && (

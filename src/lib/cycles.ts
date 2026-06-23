@@ -76,6 +76,21 @@ export function describeCycleDueDay(frequency: string, dueDay: number | null): s
   }
 }
 
+/**
+ * Whether a cycle is past its payment deadline (due date + grace days) as of
+ * `asOf` (default: today). Dates are compared by local calendar day so a
+ * payment made on the deadline day is still on time.
+ */
+export function isCycleOverdue(dueDate: string | null, graceDays: number, asOf?: Date): boolean {
+  if (!dueDate) return false
+  const [y, m, d] = dueDate.split("-").map(Number)
+  if (!y || !m || !d) return false
+  const deadline = new Date(y, m - 1, d + (graceDays || 0))
+  const now = asOf ?? new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return today > deadline
+}
+
 /** Formats a Date as YYYY-MM-DD using local date components (avoids UTC day-shift). */
 export function toISODate(date: Date): string {
   const y = date.getFullYear()

@@ -23,6 +23,7 @@ export default function SubmitPaymentDialog({
   circleId,
   userId,
   expectedAmount,
+  lateFee,
   currentPaid,
   onOptimisticUpdate,
 }: {
@@ -30,6 +31,7 @@ export default function SubmitPaymentDialog({
   circleId: string
   userId: string
   expectedAmount: number
+  lateFee: number
   currentPaid: number
   onOptimisticUpdate?: (update: ContribOptimisticUpdate) => void
 }) {
@@ -40,7 +42,8 @@ export default function SubmitPaymentDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const remaining = expectedAmount - currentPaid
+  const totalDue = expectedAmount + lateFee
+  const remaining = totalDue - currentPaid
 
   const handleOpenChange = (value: boolean) => {
     setOpen(value)
@@ -93,6 +96,12 @@ export default function SubmitPaymentDialog({
               <span className="text-[var(--text-muted)]">Expected</span>
               <span className="font-tabular font-medium text-[var(--text-primary)]">{formatCurrency(expectedAmount)}</span>
             </div>
+            {lateFee > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-600 dark:text-amber-400">Late fee (payment is past the due date)</span>
+                <span className="font-tabular font-medium text-amber-600 dark:text-amber-400">+ {formatCurrency(lateFee)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span className="text-[var(--text-muted)]">Paid so far</span>
               <span className="font-tabular text-[var(--text-primary)]">{formatCurrency(currentPaid)}</span>

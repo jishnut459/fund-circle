@@ -17,6 +17,7 @@ interface Contribution {
   avatarUrl?: string | null
   expectedAmount: number
   paidAmount: number
+  lateFee: number
   paymentDate: string | null
   notes: string | null
   status: string
@@ -39,7 +40,6 @@ export default function ContributionTable({
   circleId,
   currentUserId,
   canEdit,
-  cycleClosed,
   pendingPayments = {},
   onOptimisticUpdate,
 }: {
@@ -104,45 +104,50 @@ export default function ContributionTable({
                   {formatCurrency(c.paidAmount)}
                 </p>
                 <p className="text-[11px] text-[var(--text-muted)] font-tabular leading-tight">
-                  of {formatCurrency(c.expectedAmount)}
+                  of {formatCurrency(c.expectedAmount + c.lateFee)}
                 </p>
+                {c.lateFee > 0 && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 font-tabular leading-tight">
+                    incl. {formatCurrency(c.lateFee)} late fee
+                  </p>
+                )}
               </div>
-              {!cycleClosed && (
-                <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5 pl-1 border-l border-[var(--border-light)]">
-                  {canEdit && pending && (
-                    <VerifyPaymentActions
-                      paymentId={pending.id}
-                      contributionId={c.id}
-                      circleId={circleId}
-                      userId={currentUserId}
-                      amount={pending.amount}
-                      submittedByName={pending.submittedByName}
-                      onOptimisticUpdate={onOptimisticUpdate}
-                    />
-                  )}
-                  {canEdit && (
-                    <EditPaymentDialog
-                      contributionId={c.id}
-                      circleId={circleId}
-                      userId={currentUserId}
-                      memberName={c.userName}
-                      expectedAmount={c.expectedAmount}
-                      currentPaid={c.paidAmount}
-                      onOptimisticUpdate={onOptimisticUpdate}
-                    />
-                  )}
-                  {isOwnContribution && !pending && (
-                    <SubmitPaymentDialog
-                      contributionId={c.id}
-                      circleId={circleId}
-                      userId={currentUserId}
-                      expectedAmount={c.expectedAmount}
-                      currentPaid={c.paidAmount}
-                      onOptimisticUpdate={onOptimisticUpdate}
-                    />
-                  )}
-                </div>
-              )}
+              <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5 pl-1 border-l border-[var(--border-light)] empty:hidden">
+                {canEdit && pending && (
+                  <VerifyPaymentActions
+                    paymentId={pending.id}
+                    contributionId={c.id}
+                    circleId={circleId}
+                    userId={currentUserId}
+                    amount={pending.amount}
+                    submittedByName={pending.submittedByName}
+                    onOptimisticUpdate={onOptimisticUpdate}
+                  />
+                )}
+                {canEdit && (
+                  <EditPaymentDialog
+                    contributionId={c.id}
+                    circleId={circleId}
+                    userId={currentUserId}
+                    memberName={c.userName}
+                    expectedAmount={c.expectedAmount}
+                    lateFee={c.lateFee}
+                    currentPaid={c.paidAmount}
+                    onOptimisticUpdate={onOptimisticUpdate}
+                  />
+                )}
+                {isOwnContribution && !pending && (
+                  <SubmitPaymentDialog
+                    contributionId={c.id}
+                    circleId={circleId}
+                    userId={currentUserId}
+                    expectedAmount={c.expectedAmount}
+                    lateFee={c.lateFee}
+                    currentPaid={c.paidAmount}
+                    onOptimisticUpdate={onOptimisticUpdate}
+                  />
+                )}
+              </div>
               <ChevronDown
                 className={cn(
                   "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
@@ -159,6 +164,14 @@ export default function ContributionTable({
                       {formatCurrency(c.expectedAmount)}
                     </span>
                   </div>
+                  {c.lateFee > 0 && (
+                    <div>
+                      <span className="text-[var(--text-muted)]">Late fee: </span>
+                      <span className="font-tabular font-medium text-amber-600 dark:text-amber-400">
+                        {formatCurrency(c.lateFee)}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <span className="text-[var(--text-muted)]">Date: </span>
                     <span className="text-[var(--text-primary)]">{formatISODate(c.paymentDate ?? "")}</span>

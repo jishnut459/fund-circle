@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Banknote, CheckCircle2, Clock, HandCoins, Landmark, Wallet, ListChecks, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
+import { Banknote, CheckCircle2, Clock, HandCoins, Landmark, ListChecks, CalendarClock, ArrowRight, type LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { formatCurrency, formatISODate } from "@/lib/format"
@@ -35,41 +35,53 @@ function FundsMetricCard({
   icon: Icon,
   label,
   value,
+  hint,
   iconClass,
   href,
 }: {
   icon: LucideIcon
   label: string
   value: string
+  hint?: string
   iconClass: string
   href?: string
 }) {
   const inner = (
-    <CardContent className="p-4">
-      <div className="flex items-center gap-2 mb-2">
+    <CardContent className="p-4 h-full">
+      <div className="flex items-start gap-2 mb-2">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
           <Icon className="h-4 w-4" />
         </div>
-        <p className="text-xs font-medium text-[var(--text-muted)] truncate">{label}</p>
+        <p className="text-xs font-medium text-[var(--text-muted)] leading-tight pt-0.5">{label}</p>
       </div>
       <p className="text-xl font-bold font-tabular text-[var(--text-primary)]">{value}</p>
+      {hint && <p className="text-[11px] text-[var(--text-muted)] font-tabular mt-0.5">{hint}</p>}
     </CardContent>
   )
   if (href) {
     return (
-      <Link href={href} className="block group">
-        <Card className="transition-shadow group-hover:shadow-[var(--shadow-card-hover)] group-hover:border-[var(--border-color)]">
+      <Link href={href} className="block group h-full">
+        <Card className="h-full transition-shadow group-hover:shadow-[var(--shadow-card-hover)] group-hover:border-[var(--border-color)]">
           {inner}
         </Card>
       </Link>
     )
   }
-  return <Card>{inner}</Card>
+  return <Card className="h-full">{inner}</Card>
 }
 
 
 export default function OwnerDashboard({ data }: { data: DashboardData }) {
   const { totalCollected, recentCycles, circleId, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, interestEarned, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
+
+  // The newest cycle is the one members are paying into now; older ones are history.
+  const currentCycle = recentCycles[0] ?? null
+  const pastCycles = recentCycles.slice(1)
+  const currentProgress = currentCycle && currentCycle.totalExpected > 0
+    ? Math.round((currentCycle.totalPaid / currentCycle.totalExpected) * 100)
+    : 0
+  const stillToPay = currentCycle ? currentCycle.partialCount + currentCycle.unpaidCount : 0
+  const currentRemaining = currentCycle ? Math.max(0, currentCycle.totalExpected - currentCycle.totalPaid) : 0
 
   return (
     <div>
@@ -100,11 +112,46 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
         interestEarned={interestEarned}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      {/* The most actionable thing on the screen: this cycle's collection + a way to act on it */}
+      {currentCycle && (
+        <Card className="mb-6 border-teal/30">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-teal">Current Cycle</p>
+              <span className="text-xs font-semibold font-tabular text-[var(--text-muted)] shrink-0">{currentProgress}%</span>
+            </div>
+            <p className="font-semibold text-sm text-[var(--text-primary)] truncate">{currentCycle.label}</p>
+            <div className="flex items-baseline gap-2 mt-1.5">
+              <span className="text-2xl font-bold font-tabular text-[var(--text-primary)]">{formatCurrency(currentCycle.totalPaid)}</span>
+              <span className="text-sm text-[var(--text-muted)]">of {formatCurrency(currentCycle.totalExpected)} collected</span>
+            </div>
+            <div className="w-full h-1.5 bg-[var(--border-light)] rounded-full overflow-hidden mt-2.5">
+              <div className="h-full bg-teal rounded-full transition-all" style={{ width: `${Math.min(currentProgress, 100)}%` }} />
+            </div>
+            <div className="flex items-center justify-between gap-3 mt-4">
+              <p className="text-xs text-[var(--text-secondary)] min-w-0">
+                {stillToPay > 0
+                  ? <><span className="font-semibold text-[var(--text-primary)]">{formatCurrency(currentRemaining)}</span> from {stillToPay} member{stillToPay > 1 ? "s" : ""} still to collect</>
+                  : "Fully collected for this cycle 🎉"}
+              </p>
+              <Link
+                href={`/circles/${circleId}/cycles/${currentCycle.id}`}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-teal px-3.5 py-2 text-xs font-semibold text-white hover:bg-teal-dark transition-colors"
+              >
+                Record payments
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <FundsMetricCard
           icon={HandCoins}
-          label="Lending Pool Available"
+          label="Lending Pool"
           value={formatCurrency(lendingPoolAvailable)}
+          hint="available to lend"
           iconClass="bg-teal-50 dark:bg-teal-900/20 text-teal"
           href={`/circles/${circleId}/loans`}
         />
@@ -115,37 +162,52 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
           iconClass="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
           href={`/circles/${circleId}/assets`}
         />
-        <FundsMetricCard
-          icon={Wallet}
-          label="Outstanding Loans"
-          value={formatCurrency(totalPrincipalOutstanding)}
-          iconClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-          href={`/circles/${circleId}/loans`}
-        />
-        <FundsMetricCard
-          icon={ListChecks}
-          label="Active Loans"
-          value={String(activeLoanCount)}
-          iconClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-          href={`/circles/${circleId}/loans`}
-        />
+        {activeLoanCount > 0 ? (
+          <FundsMetricCard
+            icon={ListChecks}
+            label="Active Loans"
+            value={String(activeLoanCount)}
+            hint={`${formatCurrency(totalPrincipalOutstanding)} outstanding`}
+            iconClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+            href={`/circles/${circleId}/loans`}
+          />
+        ) : (
+          <Link href={`/circles/${circleId}/loans`} className="block group col-span-2">
+            <Card className="h-full transition-shadow group-hover:shadow-[var(--shadow-card-hover)] group-hover:border-[var(--border-color)]">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[var(--border-light)] text-[var(--text-muted)]">
+                  <ListChecks className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">No active loans</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">Members can request a loan from the lending pool</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Recent Cycles</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentCycles.length === 0 ? (
+      {recentCycles.length === 0 ? (
+        <Card>
+          <CardContent>
             <EmptyState
               icon={Banknote}
               title="No cycles yet"
               description="Start a cycle to begin tracking contributions."
               action={{ label: "Go to Payments", href: `/circles/${circleId}/cycles` }}
             />
-          ) : (
+          </CardContent>
+        </Card>
+      ) : pastCycles.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>Previous Cycles</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-2">
-              {recentCycles.map((cycle) => {
+              {pastCycles.map((cycle) => {
                 const cycleProgress = cycle.totalExpected > 0 ? Math.round((cycle.totalPaid / cycle.totalExpected) * 100) : 0
                 const isComplete = cycleProgress >= 100
 
@@ -175,9 +237,9 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
                           </span>
                         </div>
                         <div className="flex gap-2 text-[11px]">
-                          <span className="text-emerald-600 font-medium">{cycle.paidCount} paid</span>
-                          <span className="text-amber-600 font-medium">{cycle.partialCount} partial</span>
-                          <span className="text-[var(--text-muted)]">{cycle.unpaidCount} unpaid</span>
+                          {cycle.paidCount > 0 && <span className="text-emerald-600 font-medium">{cycle.paidCount} paid</span>}
+                          {cycle.partialCount > 0 && <span className="text-amber-600 font-medium">{cycle.partialCount} partial</span>}
+                          {cycle.unpaidCount > 0 && <span className="text-[var(--text-muted)]">{cycle.unpaidCount} unpaid</span>}
                         </div>
                         <div className="w-full h-1.5 bg-[var(--border-light)] rounded-full overflow-hidden">
                           <div
@@ -199,9 +261,9 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
                 )
               })}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

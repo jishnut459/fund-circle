@@ -24,6 +24,7 @@ export default function EditPaymentDialog({
   userId,
   memberName,
   expectedAmount,
+  lateFee,
   currentPaid,
   onOptimisticUpdate,
 }: {
@@ -32,6 +33,7 @@ export default function EditPaymentDialog({
   userId: string
   memberName?: string
   expectedAmount: number
+  lateFee: number
   currentPaid: number
   onOptimisticUpdate?: (update: ContribOptimisticUpdate) => void
 }) {
@@ -122,6 +124,14 @@ export default function EditPaymentDialog({
                 {formatCurrency(expectedAmount)}
               </span>
             </div>
+            {lateFee > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-600 dark:text-amber-400">Late fee</span>
+                <span className="font-tabular font-medium text-amber-600 dark:text-amber-400">
+                  + {formatCurrency(lateFee)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span className="text-[var(--text-muted)]">Current paid</span>
               <span className="font-tabular text-[var(--text-primary)]">

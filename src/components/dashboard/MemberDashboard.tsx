@@ -62,11 +62,11 @@ function FundsMetricCard({
 }) {
   const inner = (
     <CardContent className="p-4">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-start gap-2 mb-2">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
           <Icon className="h-4 w-4" />
         </div>
-        <p className="text-xs font-medium text-[var(--text-muted)] truncate">{label}</p>
+        <p className="text-xs font-medium text-[var(--text-muted)] leading-tight pt-0.5">{label}</p>
       </div>
       <p className="text-xl font-bold font-tabular text-[var(--text-primary)]">{value}</p>
     </CardContent>

@@ -9,7 +9,7 @@ import { addMemberToOpenCycles } from "@/lib/ensure-cycle"
 import { canEditContributions, isAdminOrOwner } from "@/lib/permissions"
 import { calculateAccruedInterest, calculateDailyAccruedInterest, calculateOutstandingPrincipal, computeAssetsValue, computeEligibility, computeLendingPoolAvailable, finalInstallmentDate, generateAmortizationSchedule, monthsToPayOff, roundCurrency } from "@/lib/loans"
 import { computeMemberShare } from "@/lib/settlement"
-import { toISODate } from "@/lib/cycles"
+import { toISODate, isCycleOverdue } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
 import type { ActionResult, AssetType, LoanSettings } from "@/lib/types"
 
@@ -282,6 +282,29 @@ export async function closeCycle(cycleId: string, userId: string, circleId: stri
   return { success: true, data: undefined }
 }
 
+/**
+ * The flat late fee to lock onto a contribution when a payment is recorded.
+ * Once a fee has been levied it never changes; otherwise it applies only if
+ * the cycle is past its due date + grace period and a fee is configured.
+ */
+async function resolveContributionLateFee(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  circleId: string,
+  dueDate: string | null,
+  existingLateFee: number
+): Promise<number> {
+  if (existingLateFee > 0) return existingLateFee
+  const { data: circle } = await supabase
+    .from("fund_circles")
+    .select("contribution_late_fee, contribution_grace_days")
+    .eq("id", circleId)
+    .single()
+  const fee = Number(circle?.contribution_late_fee ?? 0)
+  const grace = Number(circle?.contribution_grace_days ?? 0)
+  if (fee <= 0) return existingLateFee
+  return isCycleOverdue(dueDate, grace) ? fee : existingLateFee
+}
+
 export async function submitContributionPayment(
   contributionId: string,
   amount: number,
@@ -301,11 +324,11 @@ export async function submitContributionPayment(
   if (contrib.user_id !== userId) return { success: false, error: "You can only submit payments for your own contributions." }
   const { data: cycle } = await supabase
     .from("contribution_cycles")
-    .select("status, fund_circle_id")
+    .select("fund_circle_id")
     .eq("id", contrib.contribution_cycle_id)
     .single()
   if (!cycle || cycle.fund_circle_id !== circleId) return { success: false, error: "Contribution not found" }
-  if (cycle.status === "closed") return { success: false, error: "Cycle is closed" }
+  // Closed cycles still accept payments so members can settle previous cycles late.
   const { data: existing } = await supabase
     .from("contribution_payments")
     .select("id")
@@ -360,22 +383,23 @@ export async function verifyContributionPayment(
   if (payment.status !== "pending") return { success: false, error: "Payment is not pending verification." }
   const { data: contrib } = await supabase
     .from("contributions")
-    .select("paid_amount, contribution_cycle_id")
+    .select("paid_amount, late_fee, contribution_cycle_id")
     .eq("id", payment.contribution_id)
     .single()
   if (!contrib) return { success: false, error: "Contribution not found" }
   const { data: cycle } = await supabase
     .from("contribution_cycles")
-    .select("status, fund_circle_id")
+    .select("fund_circle_id, due_date")
     .eq("id", contrib.contribution_cycle_id)
     .single()
   if (!cycle || cycle.fund_circle_id !== circleId) return { success: false, error: "Contribution not found" }
-  if (cycle.status === "closed") return { success: false, error: "Cycle is closed" }
+  // Closed cycles still accept payments so admins can verify late settlements.
+  const lateFee = await resolveContributionLateFee(supabase, circleId, cycle.due_date, Number(contrib.late_fee))
   const previousPaid = Number(contrib.paid_amount)
   const newPaid = roundCurrency(previousPaid + Number(payment.amount))
   const { error: updateContribError } = await supabase
     .from("contributions")
-    .update({ paid_amount: newPaid, payment_date: new Date().toISOString().split("T")[0] })
+    .update({ paid_amount: newPaid, late_fee: lateFee, payment_date: new Date().toISOString().split("T")[0] })
     .eq("id", payment.contribution_id)
   if (updateContribError) return { success: false, error: "Failed to update contribution" }
   const { error: updatePaymentError } = await supabase
@@ -390,7 +414,7 @@ export async function verifyContributionPayment(
     entityType: "contribution",
     entityId: payment.contribution_id,
     previousValue: { paid_amount: previousPaid },
-    newValue: { paid_amount: newPaid, payment_amount: Number(payment.amount) },
+    newValue: { paid_amount: newPaid, payment_amount: Number(payment.amount), late_fee: lateFee },
   })
   revalidatePath(`/circles/${circleId}/cycles`)
   return { success: true, data: undefined }
@@ -459,22 +483,27 @@ export async function editContributionPayment(
     return { success: false, error: "You don't have permission to edit payments for this circle." }
   const { data: contrib } = await supabase
     .from("contributions")
-    .select("paid_amount, contribution_cycle_id")
+    .select("paid_amount, late_fee, contribution_cycle_id")
     .eq("id", contributionId)
     .single()
   if (!contrib) return { success: false, error: "Contribution not found" }
   const { data: cycle } = await supabase
     .from("contribution_cycles")
-    .select("status, fund_circle_id")
+    .select("fund_circle_id, due_date")
     .eq("id", contrib.contribution_cycle_id)
     .single()
   if (!cycle || cycle.fund_circle_id !== circleId) return { success: false, error: "Contribution not found" }
-  if (cycle.status === "closed") return { success: false, error: "Cycle is closed" }
+  // Closed cycles still accept edits so admins can record late payments.
   const previousPaid = Number(contrib.paid_amount)
+  // Only levy a late fee when there's actually a payment being recorded.
+  const lateFee = newPaidAmount > 0
+    ? await resolveContributionLateFee(supabase, circleId, cycle.due_date, Number(contrib.late_fee))
+    : Number(contrib.late_fee)
   const { error: updateError } = await supabase
     .from("contributions")
     .update({
       paid_amount: newPaidAmount,
+      late_fee: lateFee,
       payment_date: newPaidAmount > 0 ? new Date().toISOString().split("T")[0] : null,
     })
     .eq("id", contributionId)
@@ -485,8 +514,8 @@ export async function editContributionPayment(
     action: "payment_edited",
     entityType: "contribution",
     entityId: contributionId,
-    previousValue: { paid_amount: previousPaid },
-    newValue: { paid_amount: newPaidAmount, notes: notes || undefined },
+    previousValue: { paid_amount: previousPaid, late_fee: Number(contrib.late_fee) },
+    newValue: { paid_amount: newPaidAmount, late_fee: lateFee, notes: notes || undefined },
   })
   revalidatePath(`/circles/${circleId}/cycles`)
   return { success: true, data: undefined }
