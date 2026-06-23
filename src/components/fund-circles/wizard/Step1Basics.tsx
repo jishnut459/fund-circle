@@ -53,11 +53,18 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
   const [plan, setPlan] = useState(initialData.plan)
   const [startDate, setStartDate] = useState(initialData.startDate)
   const [endDate, setEndDate] = useState(initialData.endDate)
+  const [attempted, setAttempted] = useState(false)
 
   const dateError =
     startDate && endDate && endDate < startDate
       ? "End date must be on or after the start date"
       : ""
+
+  const nameError = attempted && name.trim() === "" ? "Give the circle a name" : ""
+  const amountError =
+    attempted && (amount === "" || Number(amount) <= 0) ? "Enter a contribution amount greater than ₹0" : ""
+  const startError = attempted && startDate === "" ? "Pick a start date" : ""
+  const endError = dateError || (attempted && endDate === "" ? "Pick an end date" : "")
 
   const canProceed =
     name.trim() !== "" &&
@@ -73,7 +80,10 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
   }
 
   const handleNext = () => {
-    if (!canProceed) return
+    if (!canProceed) {
+      setAttempted(true)
+      return
+    }
     onNext({ name: name.trim(), description: description.trim(), amount, frequency, cycleDueDay, plan, startDate, endDate })
   }
 
@@ -88,6 +98,7 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
           placeholder="Monthly Savings Fund"
           autoFocus
         />
+        {nameError && <p className="text-sm text-red-600">{nameError}</p>}
       </div>
 
       <div className="space-y-2">
@@ -102,16 +113,21 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="s1-amount">Contribution Amount (₹)</Label>
-          <Input
-            id="s1-amount"
-            type="number"
-            step="0.01"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="1000"
-          />
+          <Label htmlFor="s1-amount">Contribution Amount</Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)] pointer-events-none">₹</span>
+            <Input
+              id="s1-amount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="1,000"
+              className="pl-7"
+            />
+          </div>
+          {amountError && <p className="text-sm text-red-600">{amountError}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="s1-frequency">Frequency</Label>
@@ -153,6 +169,7 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
             onChange={setStartDate}
             placeholder="Pick start date"
           />
+          {startError && <p className="text-sm text-red-600">{startError}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="s1-end-date">End Date</Label>
@@ -163,15 +180,18 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
             placeholder="Pick end date"
             minDate={startDate ? new Date(startDate + "T00:00:00") : undefined}
           />
+          {endError && <p className="text-sm text-red-600">{endError}</p>}
         </div>
       </div>
-      {dateError && <p className="text-sm text-red-600">{dateError}</p>}
+      <p className="text-xs text-[var(--text-muted)] -mt-2">
+        The circle runs for a fixed term — it settles and pays out members on the end date.
+      </p>
 
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" asChild>
           <Link href="/circles">Cancel</Link>
         </Button>
-        <Button onClick={handleNext} disabled={!canProceed}>
+        <Button onClick={handleNext} aria-disabled={!canProceed}>
           Next: Loan Settings
         </Button>
       </div>

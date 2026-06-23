@@ -18,6 +18,8 @@ interface Step4ReviewProps {
   step2: LoanSettings
   step3: Step3Member[]
   onBack: () => void
+  onEditStep: (step: number) => void
+  onCreated: () => void
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -33,10 +35,21 @@ const FREQ_LABELS: Record<string, string> = {
   quarterly: "Quarterly",
 }
 
-function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
+function ReviewSection({ title, onEdit, children }: { title: string; onEdit?: () => void; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-xs font-medium text-teal hover:text-teal-dark transition-colors"
+          >
+            Edit
+          </button>
+        )}
+      </div>
       {children}
     </div>
   )
@@ -72,11 +85,18 @@ function isDefaultLoanSettings(s: LoanSettings): boolean {
   )
 }
 
-export default function Step4Review({ userId, step1, step2, step3, onBack }: Step4ReviewProps) {
+export default function Step4Review({ userId, step1, step2, step3, onBack, onEditStep, onCreated }: Step4ReviewProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [memberErrors, setMemberErrors] = useState<string[]>([])
+  // Set once the circle exists; lets the user proceed even if some invites failed.
+  const [createdCircleId, setCreatedCircleId] = useState<string | null>(null)
+
+  const goToDashboard = (circleId: string) => {
+    onCreated()
+    router.push(`/circles/${circleId}/dashboard`)
+  }
 
   const handleCreate = async () => {
     setLoading(true)
@@ -120,11 +140,16 @@ export default function Step4Review({ userId, step1, step2, step3, onBack }: Ste
       }
     }
 
+    // Surface invite failures instead of silently navigating past them — the
+    // circle already exists, so let the user review and continue deliberately.
     if (errs.length > 0) {
+      setCreatedCircleId(circleId)
       setMemberErrors(errs)
+      setLoading(false)
+      return
     }
 
-    router.push(`/circles/${circleId}/dashboard`)
+    goToDashboard(circleId)
   }
 
   const loanIsDefault = isDefaultLoanSettings(step2)
@@ -136,7 +161,7 @@ export default function Step4Review({ userId, step1, step2, step3, onBack }: Ste
       </p>
 
       {/* Basics */}
-      <ReviewSection title="Circle Basics">
+      <ReviewSection title="Circle Basics" onEdit={!createdCircleId ? () => onEditStep(1) : undefined}>
         <div className="rounded-xl border border-[var(--border-light)] px-4 divide-y divide-[var(--border-light)]">
           <ReviewRow label="Name" value={step1.name} />
           {step1.description && <ReviewRow label="Description" value={step1.description} />}
@@ -155,7 +180,7 @@ export default function Step4Review({ userId, step1, step2, step3, onBack }: Ste
       </ReviewSection>
 
       {/* Loan settings */}
-      <ReviewSection title={`Loan & Asset Settings${loanIsDefault ? " (defaults)" : ""}`}>
+      <ReviewSection title={`Loan & Asset Settings${loanIsDefault ? " (defaults)" : ""}`} onEdit={!createdCircleId ? () => onEditStep(2) : undefined}>
         <div className="rounded-xl border border-[var(--border-light)] px-4 divide-y divide-[var(--border-light)]">
           <ReviewRow
             label="Allocation"
@@ -172,7 +197,7 @@ export default function Step4Review({ userId, step1, step2, step3, onBack }: Ste
       </ReviewSection>
 
       {/* Members */}
-      <ReviewSection title={`Members (${step3.length + 1})`}>
+      <ReviewSection title={`Members (${step3.length + 1})`} onEdit={!createdCircleId ? () => onEditStep(3) : undefined}>
         {step3.length === 0 ? (
           <p className="text-xs text-[var(--text-muted)]">
             Only you as owner. Add members from the members page after creating the circle.
@@ -223,28 +248,40 @@ export default function Step4Review({ userId, step1, step2, step3, onBack }: Ste
 
       {memberErrors.length > 0 && (
         <div className="text-sm rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 space-y-1">
-          <p className="font-medium text-amber-800 dark:text-amber-300">Circle created — some invites failed:</p>
+          <p className="font-medium text-amber-800 dark:text-amber-300">Circle created — these invites failed:</p>
           {memberErrors.map((e) => (
             <p key={e} className="text-amber-700 dark:text-amber-400 text-xs">{e}</p>
           ))}
+          <p className="text-amber-700 dark:text-amber-400 text-xs pt-1">
+            You can re-invite them later from the Members page.
+          </p>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-2">
-        <Button variant="ghost" onClick={onBack} disabled={loading}>
-          Back
-        </Button>
-        <Button onClick={handleCreate} disabled={loading} className="gap-2">
-          {loading ? (
-            "Creating…"
-          ) : (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Create Circle
-            </>
-          )}
-        </Button>
-      </div>
+      {createdCircleId ? (
+        <div className="flex items-center justify-end pt-2">
+          <Button onClick={() => goToDashboard(createdCircleId)} className="gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Go to Dashboard
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between pt-2">
+          <Button variant="ghost" onClick={onBack} disabled={loading}>
+            Back
+          </Button>
+          <Button onClick={handleCreate} disabled={loading} className="gap-2">
+            {loading ? (
+              "Creating…"
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                Create Circle
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

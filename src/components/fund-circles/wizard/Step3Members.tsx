@@ -20,13 +20,17 @@ import { cn } from "@/lib/utils"
 interface Step3MembersProps {
   creatorName: string
   initialMembers: Step3Member[]
+  memberLimit: number
+  planLabel: string
   onNext: (members: Step3Member[]) => void
   onBack: () => void
 }
 
 type LookupStatus = "idle" | "loading" | "found" | "not-found" | "error"
 
-export default function Step3Members({ creatorName, initialMembers, onNext, onBack }: Step3MembersProps) {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export default function Step3Members({ creatorName, initialMembers, memberLimit, planLabel, onNext, onBack }: Step3MembersProps) {
   const [members, setMembers] = useState<Step3Member[]>(initialMembers)
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<"admin" | "member">("member")
@@ -43,7 +47,8 @@ export default function Step3Members({ creatorName, initialMembers, onNext, onBa
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
     const trimmed = value.trim()
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return
+    // Only look up when it's a single, well-formed address (bulk paste skips this).
+    if (!trimmed || !EMAIL_RE.test(trimmed)) return
 
     debounceRef.current = setTimeout(async () => {
       setLookupStatus("loading")
@@ -57,27 +62,58 @@ export default function Step3Members({ creatorName, initialMembers, onNext, onBa
     }, 400)
   }
 
+  const totalCount = members.length + 1 // + owner
+  const remaining = memberLimit === Infinity ? Infinity : memberLimit - totalCount
+  const atCapacity = remaining <= 0
+
   const handleAdd = () => {
-    const trimmedEmail = email.trim().toLowerCase()
-    if (!trimmedEmail) return
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (atCapacity) {
+      setAddError(`Member limit reached for the ${planLabel} plan`)
+      return
+    }
+    // Accept a single email or a pasted list separated by commas / spaces / newlines.
+    const tokens = email
+      .toLowerCase()
+      .split(/[\s,;]+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+    if (tokens.length === 0) return
+
+    const valid = tokens.filter((t) => EMAIL_RE.test(t))
+    if (valid.length === 0) {
       setAddError("Enter a valid email address")
       return
     }
-    if (members.some((m) => m.email === trimmedEmail)) {
+
+    const existing = new Set(members.map((m) => m.email))
+    const single = valid.length === 1
+    const fresh: Step3Member[] = []
+    for (const e of valid) {
+      if (existing.has(e)) continue
+      existing.add(e)
+      fresh.push({
+        email: e,
+        fullName: single ? lookupName ?? undefined : undefined,
+        role,
+        exists: single ? lookupStatus === "found" : false,
+      })
+    }
+    if (fresh.length === 0) {
       setAddError("Already added")
       return
     }
 
-    setMembers((prev) => [
-      ...prev,
-      { email: trimmedEmail, fullName: lookupName ?? undefined, role, exists: lookupStatus === "found" },
-    ])
+    const accepted = remaining === Infinity ? fresh : fresh.slice(0, Math.max(0, remaining))
+    setMembers((prev) => [...prev, ...accepted])
     setEmail("")
     setRole("member")
     setLookupStatus("idle")
     setLookupName(null)
-    setAddError("")
+    setAddError(
+      accepted.length < fresh.length
+        ? `Added ${accepted.length} — ${planLabel} plan member limit reached`
+        : ""
+    )
   }
 
   const handleRemove = (emailToRemove: string) => {
@@ -148,19 +184,35 @@ export default function Step3Members({ creatorName, initialMembers, onNext, onBa
           <div className="self-end">
             <Button
               variant="outline"
-              size="icon"
               onClick={handleAdd}
-              disabled={!email.trim() || lookupStatus === "loading"}
+              disabled={!email.trim() || lookupStatus === "loading" || atCapacity}
               title="Add member"
+              className="gap-1.5"
             >
               <UserPlus className="h-4 w-4" />
+              Add
             </Button>
           </div>
         </div>
+        <p className="text-xs text-[var(--text-muted)]">
+          Paste several emails separated by commas to add them all at once.
+        </p>
       </div>
 
       {/* Members list */}
       <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Members</span>
+          <span className="text-xs font-tabular text-[var(--text-muted)]">
+            {totalCount}{memberLimit !== Infinity ? ` / ${memberLimit}` : ""}
+          </span>
+        </div>
+        {atCapacity && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            You&apos;ve reached the {planLabel} plan&apos;s member limit. Upgrade the plan in step 1 to add more.
+          </p>
+        )}
+
         {/* Creator row — always shown, non-removable */}
         <div className="flex items-center gap-3 rounded-lg border border-[var(--border-light)] bg-[var(--bg-page)] px-3 py-2.5">
           <div className="w-8 h-8 rounded-full bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center shrink-0">
