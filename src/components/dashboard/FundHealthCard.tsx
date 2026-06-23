@@ -3,14 +3,16 @@ import { formatCurrency } from "@/lib/format"
 
 export default function FundHealthCard({
   totalCollected,
-  totalDisbursed,
-  totalRepaid,
+  outstandingPrincipal,
+  interestEarned,
 }: {
   totalCollected: number
-  totalDisbursed: number
-  totalRepaid: number
+  outstandingPrincipal: number
+  interestEarned: number
 }) {
-  const currentValue = totalCollected - totalDisbursed + totalRepaid
+  // Cash + receivable principal: contributions and interest income stay in the
+  // fund; only the principal still out on active loans is yet to be collected.
+  const currentValue = totalCollected + interestEarned - outstandingPrincipal
 
   return (
     <Card className="mb-8 overflow-hidden">
@@ -24,7 +26,7 @@ export default function FundHealthCard({
             {formatCurrency(currentValue)}
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-2.5">
-            contributions collected − loans disbursed + repayments received
+            contributions collected + interest earned − outstanding loan principal
           </p>
         </div>
 
@@ -37,15 +39,15 @@ export default function FundHealthCard({
             </span>
           </div>
           <div className="flex items-center justify-between px-5 py-2.5 sm:px-6">
-            <span className="text-sm text-[var(--text-secondary)]">Disbursed as loans</span>
-            <span className="text-sm font-tabular font-semibold text-red-500 dark:text-red-400">
-              − {formatCurrency(totalDisbursed)}
+            <span className="text-sm text-[var(--text-secondary)]">Interest earned on loans</span>
+            <span className="text-sm font-tabular font-semibold text-blue-600 dark:text-blue-400">
+              + {formatCurrency(interestEarned)}
             </span>
           </div>
           <div className="flex items-center justify-between px-5 py-2.5 sm:px-6">
-            <span className="text-sm text-[var(--text-secondary)]">Loan repayments received</span>
-            <span className="text-sm font-tabular font-semibold text-blue-600 dark:text-blue-400">
-              + {formatCurrency(totalRepaid)}
+            <span className="text-sm text-[var(--text-secondary)]">Outstanding loan principal</span>
+            <span className="text-sm font-tabular font-semibold text-red-500 dark:text-red-400">
+              − {formatCurrency(outstandingPrincipal)}
             </span>
           </div>
         </div>

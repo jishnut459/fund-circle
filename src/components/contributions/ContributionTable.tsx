@@ -100,21 +100,15 @@ export default function ContributionTable({
                 <ContributionStatusBadge status={c.status} />
               </div>
               <div className="text-right shrink-0">
-                <p className="text-lg font-bold font-tabular text-[var(--text-primary)]">
+                <p className="text-lg font-bold font-tabular text-[var(--text-primary)] leading-tight">
                   {formatCurrency(c.paidAmount)}
                 </p>
-                <p className="text-[11px] text-[var(--text-muted)] font-tabular">
+                <p className="text-[11px] text-[var(--text-muted)] font-tabular leading-tight">
                   of {formatCurrency(c.expectedAmount)}
                 </p>
               </div>
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
-                  isExpanded && "rotate-180"
-                )}
-              />
               {!cycleClosed && (
-                <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
+                <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5 pl-1 border-l border-[var(--border-light)]">
                   {canEdit && pending && (
                     <VerifyPaymentActions
                       paymentId={pending.id}
@@ -149,6 +143,12 @@ export default function ContributionTable({
                   )}
                 </div>
               )}
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
+                  isExpanded && "rotate-180"
+                )}
+              />
             </div>
             {isExpanded && (
               <div className="px-3 pb-3 pt-0 border-t border-[var(--border-light)] mt-0">

@@ -14,7 +14,7 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { submitForeclosure } from "@/lib/actions"
+import { submitForeclosure, adminRecordForeclosure } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
 
 export default function ForeclosureDialog({
@@ -23,13 +23,18 @@ export default function ForeclosureDialog({
   userId,
   outstandingPrincipal,
   accruedInterest,
+  mode = "member",
+  memberName,
 }: {
   loanId: string
   circleId: string
   userId: string
   outstandingPrincipal: number
   accruedInterest: number
+  mode?: "member" | "admin"
+  memberName?: string
 }) {
+  const isAdmin = mode === "admin"
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [notes, setNotes] = useState("")
@@ -47,10 +52,16 @@ export default function ForeclosureDialog({
     e.preventDefault()
     setLoading(true)
     setError("")
-    const result = await submitForeclosure(loanId, notes, userId, circleId)
+    const result = isAdmin
+      ? await adminRecordForeclosure(loanId, notes, userId, circleId)
+      : await submitForeclosure(loanId, notes, userId, circleId)
     setLoading(false)
     if (!result.success) { setError(result.error); return }
-    toast.success(`Foreclosure request of ${formatCurrency(foreclosureAmount)} submitted — awaiting admin verification`)
+    toast.success(
+      isAdmin
+        ? `Loan closed — foreclosure of ${formatCurrency(foreclosureAmount)} recorded${memberName ? ` for ${memberName}` : ""}`
+        : `Foreclosure request of ${formatCurrency(foreclosureAmount)} submitted — awaiting admin verification`
+    )
     setOpen(false)
     router.refresh()
   }
@@ -59,14 +70,16 @@ export default function ForeclosureDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
-          Close Loan Early
+          {isAdmin ? "Record Foreclosure" : "Close Loan Early"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Close Loan Early</DialogTitle>
+          <DialogTitle>{isAdmin ? `Record Foreclosure${memberName ? ` — ${memberName}` : ""}` : "Close Loan Early"}</DialogTitle>
           <DialogDescription>
-            Pay off your remaining loan balance in full. An admin will verify the payment and close your loan.
+            {isAdmin
+              ? `Settle ${memberName ?? "the member"}'s remaining balance in full and close the loan. This applies immediately — no further verification needed.`
+              : "Pay off your remaining loan balance in full. An admin will verify the payment and close your loan."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -96,7 +109,11 @@ export default function ForeclosureDialog({
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full bg-red-600 hover:bg-red-700">
-            {loading ? "Submitting..." : `Request Foreclosure — ${formatCurrency(foreclosureAmount)}`}
+            {loading
+              ? isAdmin ? "Recording..." : "Submitting..."
+              : isAdmin
+                ? `Record Foreclosure — ${formatCurrency(foreclosureAmount)}`
+                : `Request Foreclosure — ${formatCurrency(foreclosureAmount)}`}
           </Button>
         </form>
       </DialogContent>

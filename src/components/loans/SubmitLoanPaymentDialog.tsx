@@ -15,7 +15,13 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { getInstallmentDue, submitLoanPayment, submitPrepayment } from "@/lib/actions"
+import {
+  getInstallmentDue,
+  submitLoanPayment,
+  submitPrepayment,
+  adminRecordLoanInstallmentPayment,
+  adminRecordPrepayment,
+} from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
 
 type DueBreakdown = {
@@ -35,6 +41,8 @@ export default function SubmitLoanPaymentDialog({
   userId,
   installmentNumber,
   currentEMI,
+  mode = "member",
+  memberName,
 }: {
   installmentId: string
   loanId: string
@@ -42,7 +50,10 @@ export default function SubmitLoanPaymentDialog({
   userId: string
   installmentNumber: number
   currentEMI: number
+  mode?: "member" | "admin"
+  memberName?: string
 }) {
+  const isAdmin = mode === "admin"
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState("")
@@ -80,16 +91,25 @@ export default function SubmitLoanPaymentDialog({
     setLoading(true)
     setError("")
 
-    const result = isPrepayment
-      ? await submitPrepayment(loanId, amt, strategy, notes, userId, circleId)
-      : await submitLoanPayment(installmentId, amt, notes, userId, circleId)
+    const result = isAdmin
+      ? isPrepayment
+        ? await adminRecordPrepayment(loanId, amt, strategy, notes, userId, circleId)
+        : await adminRecordLoanInstallmentPayment(installmentId, amt, notes, userId, circleId)
+      : isPrepayment
+        ? await submitPrepayment(loanId, amt, strategy, notes, userId, circleId)
+        : await submitLoanPayment(installmentId, amt, notes, userId, circleId)
 
     setLoading(false)
     if (!result.success) { setError(result.error); return }
+    const forWhom = memberName ? ` for ${memberName}` : ""
     toast.success(
-      isPrepayment
-        ? `Prepayment of ${formatCurrency(amt)} submitted — awaiting admin verification`
-        : `Payment of ${formatCurrency(amt)} submitted for installment #${installmentNumber} — awaiting admin verification`
+      isAdmin
+        ? isPrepayment
+          ? `Prepayment of ${formatCurrency(amt)} recorded${forWhom}`
+          : `EMI of ${formatCurrency(amt)} recorded${forWhom} for installment #${installmentNumber}`
+        : isPrepayment
+          ? `Prepayment of ${formatCurrency(amt)} submitted — awaiting admin verification`
+          : `Payment of ${formatCurrency(amt)} submitted for installment #${installmentNumber} — awaiting admin verification`
     )
     setOpen(false)
     router.refresh()
@@ -98,19 +118,34 @@ export default function SubmitLoanPaymentDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="I've paid">
-          <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--border-color)] text-[var(--text-muted)] hover:border-teal hover:bg-teal-50 hover:text-teal transition-colors">
-            <Check className="h-3 w-3" />
-          </div>
-        </Button>
+        {isAdmin ? (
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs">
+            <Check className="h-3.5 w-3.5" />
+            Record EMI
+          </Button>
+        ) : (
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="I've paid">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--border-color)] text-[var(--text-muted)] hover:border-teal hover:bg-teal-50 hover:text-teal transition-colors">
+              <Check className="h-3 w-3" />
+            </div>
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Submit EMI Payment — Installment #{installmentNumber}</DialogTitle>
+          <DialogTitle>
+            {isAdmin
+              ? `Record EMI${memberName ? ` — ${memberName}` : ""} · Installment #${installmentNumber}`
+              : `Submit EMI Payment — Installment #${installmentNumber}`}
+          </DialogTitle>
           <DialogDescription>
-            {isPrepayment
-              ? "You're paying more than the amount due. The extra will reduce your principal."
-              : "Submit your payment details. An admin will verify and confirm it."}
+            {isAdmin
+              ? isPrepayment
+                ? `Recording more than the amount due${memberName ? ` for ${memberName}` : ""}. The extra will reduce the principal. This applies immediately.`
+                : `Record this payment on behalf of ${memberName ?? "the member"}. It applies immediately — no further verification needed.`
+              : isPrepayment
+                ? "You're paying more than the amount due. The extra will reduce your principal."
+                : "Submit your payment details. An admin will verify and confirm it."}
           </DialogDescription>
         </DialogHeader>
 
@@ -245,7 +280,11 @@ export default function SubmitLoanPaymentDialog({
               disabled={loading || !amount || Number(amount) <= 0}
               className="w-full"
             >
-              {loading ? "Submitting..." : isPrepayment ? "Submit Prepayment" : "Submit for Verification"}
+              {loading
+                ? isAdmin ? "Recording..." : "Submitting..."
+                : isAdmin
+                  ? isPrepayment ? "Record Prepayment" : "Record Payment"
+                  : isPrepayment ? "Submit Prepayment" : "Submit for Verification"}
             </Button>
           </form>
         )}

@@ -148,6 +148,8 @@ export default async function LoanDetailPage({
 
   const canCancelRequest = isLoanOwner && loan.status === "pending_request"
   const canForeclose = isLoanOwner && loan.status === "active" && !pendingLoanLevelEntry
+  // Admin override: foreclose on behalf of a member (applied immediately)
+  const canAdminForeclose = canManage && !isLoanOwner && loan.status === "active" && !pendingLoanLevelEntry
 
   return (
     <div className="space-y-6">
@@ -170,6 +172,17 @@ export default async function LoanDetailPage({
               userId={user.id}
               outstandingPrincipal={outstandingPrincipal}
               accruedInterest={accruedInterest}
+            />
+          )}
+          {canAdminForeclose && (
+            <ForeclosureDialog
+              loanId={loanId}
+              circleId={circleId}
+              userId={user.id}
+              outstandingPrincipal={outstandingPrincipal}
+              accruedInterest={accruedInterest}
+              mode="admin"
+              memberName={memberName ?? undefined}
             />
           )}
         </div>
@@ -274,6 +287,7 @@ export default async function LoanDetailPage({
           isLoanOwner={isLoanOwner}
           canManage={canManage}
           currentEMI={emi ?? 0}
+          memberName={memberName ?? undefined}
           pendingByInstallment={pendingByInstallment}
         />
       </div>

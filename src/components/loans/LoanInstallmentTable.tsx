@@ -60,6 +60,7 @@ export default function LoanInstallmentTable({
   isLoanOwner,
   canManage,
   currentEMI,
+  memberName,
   pendingByInstallment = {},
 }: {
   installments: InstallmentRow[]
@@ -69,6 +70,7 @@ export default function LoanInstallmentTable({
   isLoanOwner: boolean
   canManage: boolean
   currentEMI: number
+  memberName?: string
   pendingByInstallment?: Record<string, PendingLoanPayment>
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -102,6 +104,8 @@ export default function LoanInstallmentTable({
         const isExpanded = expandedId === i.id
         const pending = pendingByInstallment[i.id]
         const canSubmit = isLoanOwner && i.id === nextSubmittableId
+        // Admin override: record an EMI on behalf of a member who isn't the admin.
+        const canAdminRecord = canManage && !isLoanOwner && !pending && i.id === nextSubmittableId
 
         return (
           <div
@@ -122,20 +126,14 @@ export default function LoanInstallmentTable({
                 <InstallmentStatusBadge status={i.status} />
               </div>
               <div className="text-right shrink-0">
-                <p className="text-lg font-bold font-tabular text-[var(--text-primary)]">
+                <p className="text-lg font-bold font-tabular text-[var(--text-primary)] leading-tight">
                   {formatCurrency(i.paidAmount)}
                 </p>
-                <p className="text-[11px] text-[var(--text-muted)] font-tabular">
+                <p className="text-[11px] text-[var(--text-muted)] font-tabular leading-tight">
                   of {formatCurrency(i.totalDue)}
                 </p>
               </div>
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
-                  isExpanded && "rotate-180"
-                )}
-              />
-              <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
+              <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5 pl-1 border-l border-[var(--border-light)] empty:hidden">
                 {canManage && pending && (
                   <VerifyLoanPaymentActions
                     paymentId={pending.id}
@@ -157,7 +155,25 @@ export default function LoanInstallmentTable({
                     currentEMI={currentEMI}
                   />
                 )}
+                {canAdminRecord && (
+                  <SubmitLoanPaymentDialog
+                    installmentId={i.id}
+                    loanId={loanId}
+                    circleId={circleId}
+                    userId={actorUserId}
+                    installmentNumber={i.installmentNumber}
+                    currentEMI={currentEMI}
+                    mode="admin"
+                    memberName={memberName}
+                  />
+                )}
               </div>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
+                  isExpanded && "rotate-180"
+                )}
+              />
             </div>
             {isExpanded && (
               <div className="px-3 pb-3 pt-0 border-t border-[var(--border-light)] mt-0">

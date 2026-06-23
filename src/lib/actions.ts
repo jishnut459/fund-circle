@@ -1386,6 +1386,257 @@ async function applyPrepaymentAndRegenerate(
   return { success: true, data: undefined }
 }
 
+// --- Admin overrides: record loan payments on behalf of a member ---
+// Members who can't operate the app hand cash to an admin. These actions let an
+// admin record a payment directly (applied immediately, no second verification)
+// while preserving the audit trail: recorded_by = admin, submitted_by = borrower.
+// Each reuses verifyLoanPayment() so the financial logic (accrued interest,
+// installment updates, closure, prepayment regeneration) is never duplicated.
+
+async function assertCircleAdmin(circleId: string, actorUserId: string): Promise<string | null> {
+  const supabase = createAdminSupabaseClient()
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", actorUserId)
+    .eq("active", true)
+    .maybeSingle()
+  if (!membership || !isAdminOrOwner(membership.role)) return "You don't have permission to record payments for this circle."
+  return null
+}
+
+export async function adminRecordLoanInstallmentPayment(
+  installmentId: string,
+  amount: number,
+  notes: string,
+  actorUserId: string,
+  circleId: string
+): Promise<ActionResult> {
+  if (!installmentId || !amount || amount <= 0 || !actorUserId || !circleId)
+    return { success: false, error: "Enter a payment amount greater than zero" }
+  const permissionError = await assertCircleAdmin(circleId, actorUserId)
+  if (permissionError) return { success: false, error: permissionError }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: installment } = await supabase
+    .from("loan_installments")
+    .select("id, loan_id, installment_number, due_date, total_due, paid_amount")
+    .eq("id", installmentId)
+    .single()
+  if (!installment) return { success: false, error: "Installment not found" }
+  const { data: loan } = await supabase
+    .from("loans")
+    .select("id, fund_circle_id, user_id, status, interest_rate_pct")
+    .eq("id", installment.loan_id)
+    .single()
+  if (!loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
+  if (loan.status !== "active") return { success: false, error: "Payments can only be recorded for active loans" }
+
+  // Sequential enforcement (mirrors submitLoanPayment): the recorded installment
+  // must be the earliest unpaid one with no existing pending payment.
+  const { data: allInstallments } = await supabase
+    .from("loan_installments")
+    .select("id, installment_number, paid_amount, total_due")
+    .eq("loan_id", loan.id)
+    .order("installment_number", { ascending: true })
+  const { data: existingPending } = await supabase
+    .from("loan_payments")
+    .select("loan_installment_id")
+    .in("loan_installment_id", (allInstallments ?? []).map((i) => i.id))
+    .eq("status", "pending")
+  const pendingSet = new Set(
+    (existingPending ?? []).map((p) => p.loan_installment_id).filter(Boolean) as string[]
+  )
+  const firstUnpaid = (allInstallments ?? []).find(
+    (i) => Number(i.paid_amount) < Number(i.total_due) && !pendingSet.has(i.id)
+  )
+  if (!firstUnpaid || firstUnpaid.id !== installmentId)
+    return { success: false, error: "Please settle earlier installments before recording this one." }
+
+  // Lock in accrued interest at record time (same calculation as submitLoanPayment)
+  const [{ data: circle }, { data: thisAndFuture }] = await Promise.all([
+    supabase.from("fund_circles").select("loan_grace_days").eq("id", circleId).single(),
+    supabase
+      .from("loan_installments")
+      .select("principal_component")
+      .eq("loan_id", loan.id)
+      .gte("installment_number", installment.installment_number),
+  ])
+  const outstandingPrincipal = roundCurrency(
+    (thisAndFuture ?? []).reduce((sum, i) => sum + Number(i.principal_component), 0)
+  )
+  const graceDays = Number(circle?.loan_grace_days ?? 0)
+  const dueDate = new Date(installment.due_date)
+  const graceDeadline = new Date(dueDate)
+  graceDeadline.setDate(graceDeadline.getDate() + graceDays)
+  const msPerDay = 1000 * 60 * 60 * 24
+  const daysLate = Math.max(0, Math.floor((Date.now() - graceDeadline.getTime()) / msPerDay))
+  const accruedInterest = calculateDailyAccruedInterest(
+    outstandingPrincipal,
+    Number(loan.interest_rate_pct ?? 0),
+    daysLate
+  )
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("loan_payments")
+    .insert({
+      loan_installment_id: installmentId,
+      amount,
+      accrued_interest: accruedInterest,
+      recorded_by: actorUserId,
+      submitted_by: loan.user_id,
+      status: "pending",
+      payment_type: "regular",
+      notes: notes || null,
+    })
+    .select("id")
+    .single()
+  if (insertError || !inserted) return { success: false, error: "Failed to record payment" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_payment_recorded_on_behalf",
+    entityType: "loan",
+    entityId: loan.id,
+    newValue: { onBehalfOf: loan.user_id, installmentId, amount, paymentType: "regular" },
+  })
+
+  return verifyLoanPayment(inserted.id, actorUserId, circleId)
+}
+
+export async function adminRecordPrepayment(
+  loanId: string,
+  amount: number,
+  strategy: "reduce_emi" | "reduce_tenure",
+  notes: string,
+  actorUserId: string,
+  circleId: string
+): Promise<ActionResult> {
+  if (!loanId || !amount || amount <= 0 || !actorUserId || !circleId)
+    return { success: false, error: "Enter a prepayment amount greater than zero" }
+  const permissionError = await assertCircleAdmin(circleId, actorUserId)
+  if (permissionError) return { success: false, error: permissionError }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: loan } = await supabase
+    .from("loans")
+    .select("id, fund_circle_id, user_id, status")
+    .eq("id", loanId)
+    .single()
+  if (!loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
+  if (loan.status !== "active") return { success: false, error: "Prepayments can only be recorded for active loans" }
+  const { data: existing } = await supabase
+    .from("loan_payments")
+    .select("id")
+    .eq("loan_id", loanId)
+    .in("status", ["pending"])
+    .in("payment_type", ["prepayment", "foreclosure"])
+    .maybeSingle()
+  if (existing) return { success: false, error: "A prepayment or foreclosure is already pending for this loan." }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("loan_payments")
+    .insert({
+      loan_id: loanId,
+      amount,
+      recorded_by: actorUserId,
+      submitted_by: loan.user_id,
+      status: "pending",
+      payment_type: "prepayment",
+      prepayment_strategy: strategy,
+      notes: notes || null,
+    })
+    .select("id")
+    .single()
+  if (insertError || !inserted) return { success: false, error: "Failed to record prepayment" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_payment_recorded_on_behalf",
+    entityType: "loan",
+    entityId: loanId,
+    newValue: { onBehalfOf: loan.user_id, amount, paymentType: "prepayment", strategy },
+  })
+
+  return verifyLoanPayment(inserted.id, actorUserId, circleId)
+}
+
+export async function adminRecordForeclosure(
+  loanId: string,
+  notes: string,
+  actorUserId: string,
+  circleId: string
+): Promise<ActionResult<{ foreclosureAmount: number }>> {
+  if (!loanId || !actorUserId || !circleId) return { success: false, error: "Missing required fields" }
+  const permissionError = await assertCircleAdmin(circleId, actorUserId)
+  if (permissionError) return { success: false, error: permissionError }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: loan } = await supabase
+    .from("loans")
+    .select("id, fund_circle_id, user_id, status")
+    .eq("id", loanId)
+    .single()
+  if (!loan || loan.fund_circle_id !== circleId) return { success: false, error: "Loan not found" }
+  if (loan.status !== "active") return { success: false, error: "Only active loans can be foreclosed" }
+  const { data: existing } = await supabase
+    .from("loan_payments")
+    .select("id")
+    .eq("loan_id", loanId)
+    .in("status", ["pending"])
+    .in("payment_type", ["prepayment", "foreclosure"])
+    .maybeSingle()
+  if (existing) return { success: false, error: "A prepayment or foreclosure is already pending for this loan." }
+
+  const { data: rawInstallments } = await supabase
+    .from("loan_installments")
+    .select("principal_component, interest_component, total_due, paid_amount, due_date")
+    .eq("loan_id", loanId)
+  const installments = (rawInstallments ?? []).map((i) => ({
+    principalComponent: Number(i.principal_component),
+    interestComponent: Number(i.interest_component),
+    totalDue: Number(i.total_due),
+    paidAmount: Number(i.paid_amount),
+    dueDate: i.due_date,
+  }))
+  const todayIso = toISODate(new Date())
+  const outstandingPrincipal = calculateOutstandingPrincipal(installments)
+  const accruedInterest = calculateAccruedInterest(installments, todayIso)
+  const foreclosureAmount = roundCurrency(outstandingPrincipal + accruedInterest)
+  if (foreclosureAmount <= 0) return { success: false, error: "Loan appears to already be fully paid." }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("loan_payments")
+    .insert({
+      loan_id: loanId,
+      amount: foreclosureAmount,
+      recorded_by: actorUserId,
+      submitted_by: loan.user_id,
+      status: "pending",
+      payment_type: "foreclosure",
+      notes: notes || null,
+    })
+    .select("id")
+    .single()
+  if (insertError || !inserted) return { success: false, error: "Failed to record foreclosure" }
+
+  await writeAuditLog({
+    circleId,
+    userId: actorUserId,
+    action: "loan_payment_recorded_on_behalf",
+    entityType: "loan",
+    entityId: loanId,
+    newValue: { onBehalfOf: loan.user_id, amount: foreclosureAmount, paymentType: "foreclosure" },
+  })
+
+  const result = await verifyLoanPayment(inserted.id, actorUserId, circleId)
+  if (!result.success) return result
+  return { success: true, data: { foreclosureAmount } }
+}
+
 export async function extendCircleEndDate(circleId: string, newEndDate: string, actorUserId: string): Promise<ActionResult> {
   if (!newEndDate) return { success: false, error: "Enter a valid end date" }
 

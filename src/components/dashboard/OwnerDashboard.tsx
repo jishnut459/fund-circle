@@ -24,8 +24,7 @@ interface DashboardData {
   assetsValue: number
   totalPrincipalOutstanding: number
   activeLoanCount: number
-  totalDisbursed: number
-  totalRepaid: number
+  interestEarned: number
   endDate: string | null
   settlementStatus: string | null
   showSettlementBanner: boolean
@@ -70,7 +69,7 @@ function FundsMetricCard({
 
 
 export default function OwnerDashboard({ data }: { data: DashboardData }) {
-  const { totalCollected, recentCycles, circleId, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, totalDisbursed, totalRepaid, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
+  const { totalCollected, recentCycles, circleId, lendingPoolAvailable, assetsValue, totalPrincipalOutstanding, activeLoanCount, interestEarned, endDate, settlementStatus, showSettlementBanner, endDatePassed } = data
 
   return (
     <div>
@@ -97,8 +96,8 @@ export default function OwnerDashboard({ data }: { data: DashboardData }) {
 
       <FundHealthCard
         totalCollected={totalCollected}
-        totalDisbursed={totalDisbursed}
-        totalRepaid={totalRepaid}
+        outstandingPrincipal={totalPrincipalOutstanding}
+        interestEarned={interestEarned}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">

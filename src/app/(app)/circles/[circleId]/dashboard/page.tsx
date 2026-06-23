@@ -84,6 +84,13 @@ export default async function CircleDashboardPage({
         totalRepaid: 0,
       }
 
+  // Interest income = everything repaid beyond the principal that has come back.
+  // (repaid principal = total disbursed − principal still outstanding.)
+  const interestEarned = Math.max(
+    0,
+    fundsSummary.totalRepaid - (fundsSummary.totalDisbursed - fundsSummary.totalPrincipalOutstanding)
+  )
+
   if (isAdminOrOwner(role)) {
     const { data: allCycles } = await supabase
       .from("contribution_cycles")
@@ -91,11 +98,6 @@ export default async function CircleDashboardPage({
       .eq("fund_circle_id", circleId)
       .order("created_at", { ascending: false })
       .limit(6)
-
-    const totalCollected = allCycles?.reduce((sum, c) => {
-      const ct = c.contributions as Array<{ paid_amount: number }> | undefined
-      return sum + (ct?.reduce((s, x) => s + Number(x.paid_amount), 0) ?? 0)
-    }, 0) ?? 0
 
     const recentCycles = (allCycles ?? []).map((c) => {
       const ct = c.contributions as Array<{ paid_amount: number; expected_amount: number }> | undefined
@@ -110,15 +112,14 @@ export default async function CircleDashboardPage({
     return (
       <OwnerDashboard
         data={{
-          totalCollected,
+          totalCollected: fundsSummary.totalContributionsCollected,
           recentCycles,
           circleId,
           lendingPoolAvailable: fundsSummary.lendingPoolAvailable,
           assetsValue: fundsSummary.assetsValue,
           totalPrincipalOutstanding: fundsSummary.totalPrincipalOutstanding,
           activeLoanCount: fundsSummary.activeLoanCount,
-          totalDisbursed: fundsSummary.totalDisbursed,
-          totalRepaid: fundsSummary.totalRepaid,
+          interestEarned,
           endDate,
           settlementStatus,
           showSettlementBanner,
@@ -167,8 +168,8 @@ export default async function CircleDashboardPage({
         assetsValue: fundsSummary.assetsValue,
         myOutstandingLoan: fundsSummary.outstandingPrincipal,
         myLoanEligibility: fundsSummary.eligibleAmount,
-        totalDisbursed: fundsSummary.totalDisbursed,
-        totalRepaid: fundsSummary.totalRepaid,
+        totalPrincipalOutstanding: fundsSummary.totalPrincipalOutstanding,
+        interestEarned,
         totalContributionsCollected: fundsSummary.totalContributionsCollected,
         endDate,
         settlementStatus,

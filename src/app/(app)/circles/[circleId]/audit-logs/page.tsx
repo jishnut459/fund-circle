@@ -26,6 +26,13 @@ function formatAuditAction(entry: AuditEntry): string {
       const next = entry.newValue as { paid_amount: number; payment_amount: number } | null
       return `${entry.userName} recorded ${formatCurrency(next?.payment_amount ?? 0)} payment${prev?.paid_amount != null ? ` (was ${formatCurrency(prev.paid_amount)})` : ""}`
     }
+    case "loan_payment_recorded_on_behalf": {
+      const v = entry.newValue as { amount: number; paymentType: "regular" | "prepayment" | "foreclosure" } | null
+      const kind =
+        v?.paymentType === "foreclosure" ? "foreclosure" :
+        v?.paymentType === "prepayment" ? "prepayment" : "EMI payment"
+      return `${entry.userName} recorded a ${kind} of ${formatCurrency(v?.amount ?? 0)} on a member's behalf`
+    }
     case "cycle_started": {
       const v = entry.newValue as { circleName: string; label: string } | null
       return `${entry.userName} started a new cycle: ${v?.circleName ?? ""} — ${v?.label ?? ""}`

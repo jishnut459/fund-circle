@@ -38,8 +38,8 @@ interface MemberData {
   assetsValue: number
   myOutstandingLoan: number
   myLoanEligibility: number
-  totalDisbursed: number
-  totalRepaid: number
+  totalPrincipalOutstanding: number
+  interestEarned: number
   totalContributionsCollected: number
   endDate: string | null
   settlementStatus: string | null
@@ -112,7 +112,7 @@ const STATUS_BAR_COLOR: Record<string, string> = {
 }
 
 export default function MemberDashboard({ data }: { data: MemberData }) {
-  const { currentCycle, totalPaid, cycles, circleMeta, lendingPoolAvailable, assetsValue, myOutstandingLoan, myLoanEligibility, totalDisbursed, totalRepaid, totalContributionsCollected, endDate, settlementStatus, showSettlementBanner, endDatePassed, circleId } = data
+  const { currentCycle, totalPaid, cycles, circleMeta, lendingPoolAvailable, assetsValue, myOutstandingLoan, myLoanEligibility, totalPrincipalOutstanding, interestEarned, totalContributionsCollected, endDate, settlementStatus, showSettlementBanner, endDatePassed, circleId } = data
   const progress = currentCycle && currentCycle.expectedAmount > 0
     ? Math.round((currentCycle.paidAmount / currentCycle.expectedAmount) * 100)
     : 0
@@ -142,8 +142,8 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
 
       <FundHealthCard
         totalCollected={totalContributionsCollected}
-        totalDisbursed={totalDisbursed}
-        totalRepaid={totalRepaid}
+        outstandingPrincipal={totalPrincipalOutstanding}
+        interestEarned={interestEarned}
       />
 
       {currentCycle ? (
