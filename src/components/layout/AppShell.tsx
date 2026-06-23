@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { isAdminOrOwner } from "@/lib/permissions"
 import UserDropdown from "./UserDropdown"
+import ViewModeToggle from "./ViewModeToggle"
 import {
   PiggyBank,
   LayoutDashboard,
@@ -27,11 +28,22 @@ interface AppUser {
   avatarUrl: string | null
 }
 
-function AppSidebar({ currentUser, circleName }: { currentUser: AppUser; circleName?: string }) {
+function AppSidebar({
+  currentUser,
+  circleName,
+  canSwitchView,
+  viewMode,
+}: {
+  currentUser: AppUser
+  circleName?: string
+  canSwitchView: boolean
+  viewMode: "admin" | "member"
+}) {
   const pathname = usePathname()
   const isCirclesHome = pathname === "/circles"
   const isInCircle = pathname.startsWith("/circles/") && !isCirclesHome && pathname.split("/")[2] !== "new"
   const circleId = isInCircle ? pathname.split("/")[2] : ""
+  const isAdmin = isAdminOrOwner(currentUser.circleRole ?? "")
 
   const circleLinks = isInCircle
     ? [
@@ -40,12 +52,10 @@ function AppSidebar({ currentUser, circleName }: { currentUser: AppUser; circleN
         { href: `/circles/${circleId}/cycles`, label: "Payments", icon: Banknote },
         { href: `/circles/${circleId}/loans`, label: "Loans", icon: HandCoins },
         { href: `/circles/${circleId}/assets`, label: "Assets", icon: Landmark },
-        ...(isAdminOrOwner(currentUser.circleRole ?? "")
-          ? [
-              { href: `/circles/${circleId}/audit-logs`, label: "Audit Logs", icon: ScrollText },
-              { href: `/circles/${circleId}/settings`, label: "Settings", icon: Settings },
-            ]
+        ...(isAdmin
+          ? [{ href: `/circles/${circleId}/audit-logs`, label: "Audit Logs", icon: ScrollText }]
           : []),
+        { href: `/circles/${circleId}/settings`, label: isAdmin ? "Settings" : "Circle Rules", icon: Settings },
       ]
     : []
 
@@ -72,6 +82,11 @@ function AppSidebar({ currentUser, circleName }: { currentUser: AppUser; circleN
               <ChevronLeft className="h-3 w-3" />
               All Circles
             </Link>
+            {canSwitchView && (
+              <div className="mt-3">
+                <ViewModeToggle viewMode={viewMode} />
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
@@ -156,15 +171,16 @@ function BottomNav({ currentUser }: { currentUser: AppUser }) {
     { href: `/circles/${circleId}/loans`, label: "Loans", icon: HandCoins },
   ]
 
-  const moreTabs = [
-    { href: `/circles/${circleId}/assets`, label: "Assets", icon: Landmark },
-    ...(isAdminOrOwner(currentUser.circleRole ?? "")
-      ? [
-          { href: `/circles/${circleId}/audit-logs`, label: "Audit", icon: ScrollText },
-          { href: `/circles/${circleId}/settings`, label: "Settings", icon: Settings },
-        ]
-      : []),
-  ]
+  const moreTabs = isAdminOrOwner(currentUser.circleRole ?? "")
+    ? [
+        { href: `/circles/${circleId}/assets`, label: "Assets", icon: Landmark },
+        { href: `/circles/${circleId}/audit-logs`, label: "Audit", icon: ScrollText },
+        { href: `/circles/${circleId}/settings`, label: "Settings", icon: Settings },
+      ]
+    : [
+        { href: `/circles/${circleId}/assets`, label: "Assets", icon: Landmark },
+        { href: `/circles/${circleId}/settings`, label: "Rules", icon: Settings },
+      ]
 
   const isMoreActive = moreTabs.some((t) => pathname.startsWith(t.href))
 
@@ -234,7 +250,17 @@ function BottomNav({ currentUser }: { currentUser: AppUser }) {
   )
 }
 
-function MobileHeader({ currentUser, circleName }: { currentUser: AppUser; circleName?: string }) {
+function MobileHeader({
+  currentUser,
+  circleName,
+  canSwitchView,
+  viewMode,
+}: {
+  currentUser: AppUser
+  circleName?: string
+  canSwitchView: boolean
+  viewMode: "admin" | "member"
+}) {
   const user = {
     name: currentUser.name,
     email: currentUser.email,
@@ -262,6 +288,11 @@ function MobileHeader({ currentUser, circleName }: { currentUser: AppUser; circl
           </div>
           <UserDropdown user={user} compact side="bottom" />
         </div>
+        {canSwitchView && (
+          <div className="flex items-center justify-end px-3 pb-2">
+            <ViewModeToggle viewMode={viewMode} />
+          </div>
+        )}
       </div>
     )
   }
@@ -287,16 +318,30 @@ export default function AppShell({
   children,
   currentUser,
   circleName,
+  canSwitchView = false,
+  viewMode = "admin",
 }: {
   children: React.ReactNode
   currentUser: AppUser
   circleName?: string
+  canSwitchView?: boolean
+  viewMode?: "admin" | "member"
 }) {
   return (
     <div className="flex h-full">
-      <AppSidebar currentUser={currentUser} circleName={circleName} />
+      <AppSidebar
+        currentUser={currentUser}
+        circleName={circleName}
+        canSwitchView={canSwitchView}
+        viewMode={viewMode}
+      />
       <div className="flex-1 flex flex-col min-w-0">
-        <MobileHeader currentUser={currentUser} circleName={circleName} />
+        <MobileHeader
+          currentUser={currentUser}
+          circleName={circleName}
+          canSwitchView={canSwitchView}
+          viewMode={viewMode}
+        />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
           <div className="p-4 md:p-6 lg:p-8">{children}</div>
         </main>

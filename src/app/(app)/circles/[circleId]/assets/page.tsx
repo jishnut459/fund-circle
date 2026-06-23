@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -24,7 +25,7 @@ export default async function AssetsPage({ params }: { params: Promise<{ circleI
     .single()
   if (!membership) redirect("/circles")
 
-  const isAdmin = isAdminOrOwner(membership.role)
+  const isAdmin = isAdminOrOwner(resolveEffectiveRole(membership.role, await getViewPreference(circleId)))
 
   // Placeholder — asset tracking table not yet created.
   // When the assets table is added, fetch and display here.

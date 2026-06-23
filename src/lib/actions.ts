@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { headers } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { createAdminSupabaseClient, createServerSupabaseClient } from "@/lib/supabase-server"
 import { writeAuditLog } from "@/lib/audit"
 import { resolveUserOnSignIn } from "@/lib/onboarding"
@@ -12,6 +12,7 @@ import { calculateAccruedInterest, calculateDailyAccruedInterest, calculateOutst
 import { computeMemberShare } from "@/lib/settlement"
 import { toISODate, isCycleOverdue } from "@/lib/cycles"
 import { formatCurrency } from "@/lib/format"
+import { viewCookieName } from "@/lib/view-mode"
 import type { ActionResult, AssetType, LoanSettings } from "@/lib/types"
 
 const PLAN_LIMITS: Record<string, number> = { free: 20, pro: 100, premium: 9999 }
@@ -2226,4 +2227,42 @@ export async function recordSettlementDisbursement(payoutId: string, circleId: s
 
   revalidatePath(`/circles/${circleId}/settlement`)
   return { success: true, data: undefined }
+}
+
+/**
+ * Persist an admin's chosen view ("admin" | "member") for a circle in a per-circle cookie.
+ * Presentation only — re-checks the true role so a non-admin can never pin a "member"
+ * cookie that would change behaviour (their real role drives the UI regardless). No DB
+ * write, so no audit log.
+ */
+export async function setCircleViewMode(
+  circleId: string,
+  mode: "admin" | "member"
+): Promise<ActionResult<{ mode: "admin" | "member" }>> {
+  const authed = await createServerSupabaseClient()
+  const { data: { user } } = await authed.auth.getUser()
+  if (!user) return { success: false, error: "Not signed in" }
+
+  const supabase = createAdminSupabaseClient()
+  const { data: membership } = await supabase
+    .from("fund_circle_members")
+    .select("role")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .single()
+
+  // Only genuine admins/owners may switch to member view; everyone else stays on "admin".
+  const effectiveMode =
+    membership && isAdminOrOwner(membership.role) && mode === "member" ? "member" : "admin"
+
+  const store = await cookies()
+  store.set(viewCookieName(circleId), effectiveMode, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  })
+
+  return { success: true, data: { mode: effectiveMode } }
 }

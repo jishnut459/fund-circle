@@ -2,6 +2,8 @@ import { getCurrentUser } from "@/lib/get-current-user"
 import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { redirect } from "next/navigation"
 import AppShell from "@/components/layout/AppShell"
+import { isAdminOrOwner } from "@/lib/permissions"
+import { getViewPreference, resolveEffectiveRole } from "@/lib/view-mode"
 
 export default async function CircleLayout({
   children,
@@ -34,16 +36,28 @@ export default async function CircleLayout({
 
   if (!membership) redirect("/circles")
 
+  // Admins/owners may preview the member experience via the view toggle. The effective
+  // role drives all UI gating; it can only ever downgrade an admin to "member" — never
+  // escalate — and RLS remains the real access boundary.
+  const viewPref = await getViewPreference(circleId)
+  const canSwitchView = isAdminOrOwner(membership.role)
+  const effectiveRole = resolveEffectiveRole(membership.role, viewPref)
+
   const currentUser = {
     id: user.id,
     email: user.email,
     name: user.name,
-    circleRole: membership.role,
+    circleRole: effectiveRole,
     avatarUrl: user.avatarUrl,
   }
 
   return (
-    <AppShell currentUser={currentUser} circleName={circle.name}>
+    <AppShell
+      currentUser={currentUser}
+      circleName={circle.name}
+      canSwitchView={canSwitchView}
+      viewMode={canSwitchView ? viewPref : "admin"}
+    >
       {children}
     </AppShell>
   )

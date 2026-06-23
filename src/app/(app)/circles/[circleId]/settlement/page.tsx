@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calculator, Landmark, PlusCircle, Users } from "lucide-react"
 import { roundCurrency } from "@/lib/loans"
@@ -33,7 +34,7 @@ export default async function CircleSettlementPage({
 
   if (!membership) redirect("/circles")
 
-  const canManage = isAdminOrOwner(membership.role)
+  const canManage = isAdminOrOwner(resolveEffectiveRole(membership.role, await getViewPreference(circleId)))
 
   // Asset records
   const { data: rawRecords } = await supabase

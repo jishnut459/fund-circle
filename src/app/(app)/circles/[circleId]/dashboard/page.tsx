@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import OwnerDashboard from "@/components/dashboard/OwnerDashboard"
 import MemberDashboard from "@/components/dashboard/MemberDashboard"
 import { ensureCurrentCycle } from "@/lib/ensure-cycle"
@@ -30,7 +31,7 @@ export default async function CircleDashboardPage({
 
   await ensureCurrentCycle(circleId, user.id)
 
-  const role = membership.role
+  const role = resolveEffectiveRole(membership.role, await getViewPreference(circleId))
 
   const { data: circle } = await supabase
     .from("fund_circles")

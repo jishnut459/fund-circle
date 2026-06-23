@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollText } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -171,7 +172,9 @@ export default async function CircleAuditLogsPage({
     .eq("active", true)
     .single()
 
-  if (!membership || !isAdminOrOwner(membership.role)) {
+  if (!membership) redirect("/circles")
+  // Admin-only page — also redirect an admin who is currently in member view.
+  if (!isAdminOrOwner(resolveEffectiveRole(membership.role, await getViewPreference(circleId)))) {
     redirect(`/circles/${circleId}/dashboard`)
   }
 

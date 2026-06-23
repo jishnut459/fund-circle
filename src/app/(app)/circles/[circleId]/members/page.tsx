@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import MemberTable from "@/components/members/MemberTable"
 import AddMemberDialog from "@/components/members/AddMemberDialog"
 import PendingInvitesList from "@/components/members/PendingInvitesList"
@@ -29,7 +30,7 @@ export default async function CircleMembersPage({
 
   if (!membership) redirect("/circles")
 
-  const role = membership.role
+  const role = resolveEffectiveRole(membership.role, await getViewPreference(circleId))
   const canEdit = isAdminOrOwner(role)
 
   const { data: rawMembers } = await supabase

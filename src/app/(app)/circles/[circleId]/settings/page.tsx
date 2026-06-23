@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,8 @@ import { formatCurrency, formatDate } from "@/lib/format"
 import { describeCycleDueDay } from "@/lib/cycles"
 import ExtendCircleDialog from "@/components/loans/ExtendCircleDialog"
 import LoanSettingsForm from "@/components/loans/LoanSettingsForm"
+import CircleRulesSummary from "@/components/fund-circles/CircleRulesSummary"
+import type { LoanSettings } from "@/lib/types"
 
 export default async function CircleSettingsPage({
   params,
@@ -33,9 +36,12 @@ export default async function CircleSettingsPage({
     .eq("active", true)
     .single()
 
-  if (!membership || !isAdminOrOwner(membership.role)) {
-    redirect(`/circles/${circleId}/dashboard`)
-  }
+  if (!membership) redirect("/circles")
+
+  // All members can view circle rules read-only (transparency); edit affordances and
+  // the Plan section are gated to admins/owners. An admin in member view sees the
+  // read-only experience too.
+  const isAdmin = isAdminOrOwner(resolveEffectiveRole(membership.role, await getViewPreference(circleId)))
 
   const { data: circle } = await supabase
     .from("fund_circles")
@@ -44,6 +50,18 @@ export default async function CircleSettingsPage({
     .single()
 
   if (!circle) redirect("/circles")
+
+  const loanSettings: LoanSettings = {
+    assetAllocationPct: Number(circle.asset_allocation_pct),
+    loanAllocationPct: Number(circle.loan_allocation_pct),
+    loanInterestRatePct: Number(circle.loan_interest_rate_pct),
+    maxLoanPctOfContribution: Number(circle.max_loan_pct_of_contribution),
+    maxLoanPctOfLendingPool: Number(circle.max_loan_pct_of_lending_pool),
+    contributionLateFee: Number(circle.contribution_late_fee),
+    contributionGraceDays: circle.contribution_grace_days,
+    loanLateFee: Number(circle.loan_late_fee),
+    loanGraceDays: circle.loan_grace_days,
+  }
 
   const { count: memberCount } = await supabase
     .from("fund_circle_members")
@@ -77,7 +95,7 @@ export default async function CircleSettingsPage({
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
-        Circle Settings
+        {isAdmin ? "Circle Settings" : "Circle Rules"}
       </h2>
 
       {/* Two-column layout on large screens */}
@@ -122,9 +140,11 @@ export default async function CircleSettingsPage({
                   {circle.status}
                 </Badge>
               </div>
-              <p className="text-xs text-[var(--text-muted)]">
-                Editing is not available in this version.
-              </p>
+              {isAdmin && (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Editing is not available in this version.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -146,12 +166,14 @@ export default async function CircleSettingsPage({
                   <Input defaultValue={circle.end_date ? formatDate(circle.end_date) : "Not set"} disabled />
                 </div>
               </div>
-              <ExtendCircleDialog
-                circleId={circleId}
-                actorUserId={user.id}
-                currentEndDate={circle.end_date}
-                startDate={circle.start_date}
-              />
+              {isAdmin && (
+                <ExtendCircleDialog
+                  circleId={circleId}
+                  actorUserId={user.id}
+                  currentEndDate={circle.end_date}
+                  startDate={circle.start_date}
+                />
+              )}
             </CardContent>
           </Card>
         </div>
@@ -166,21 +188,15 @@ export default async function CircleSettingsPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <LoanSettingsForm
-                circleId={circleId}
-                actorUserId={user.id}
-                initialSettings={{
-                  assetAllocationPct: Number(circle.asset_allocation_pct),
-                  loanAllocationPct: Number(circle.loan_allocation_pct),
-                  loanInterestRatePct: Number(circle.loan_interest_rate_pct),
-                  maxLoanPctOfContribution: Number(circle.max_loan_pct_of_contribution),
-                  maxLoanPctOfLendingPool: Number(circle.max_loan_pct_of_lending_pool),
-                  contributionLateFee: Number(circle.contribution_late_fee),
-                  contributionGraceDays: circle.contribution_grace_days,
-                  loanLateFee: Number(circle.loan_late_fee),
-                  loanGraceDays: circle.loan_grace_days,
-                }}
-              />
+              {isAdmin ? (
+                <LoanSettingsForm
+                  circleId={circleId}
+                  actorUserId={user.id}
+                  initialSettings={loanSettings}
+                />
+              ) : (
+                <CircleRulesSummary settings={loanSettings} />
+              )}
             </CardContent>
           </Card>
 
@@ -243,26 +259,28 @@ export default async function CircleSettingsPage({
         </CardContent>
       </Card>
 
-      {/* Full-width: Plan */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle>Plan</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--border-light)]">
-            <div>
-              <p className="font-semibold text-[var(--text-primary)] capitalize">{circle.subscription_plan} Plan</p>
-              <p className="text-sm text-[var(--text-secondary)]">
-                {memberCount} member{memberCount !== 1 ? "s" : ""}
-              </p>
+      {/* Full-width: Plan — admin only */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle>Plan</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--border-light)]">
+              <div>
+                <p className="font-semibold text-[var(--text-primary)] capitalize">{circle.subscription_plan} Plan</p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {memberCount} member{memberCount !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <Badge variant="success">{circle.subscription_plan}</Badge>
             </div>
-            <Badge variant="success">{circle.subscription_plan}</Badge>
-          </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            Upgrade and payment integration is not available in this version.
-          </p>
-        </CardContent>
-      </Card>
+            <p className="text-xs text-[var(--text-muted)]">
+              Upgrade and payment integration is not available in this version.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

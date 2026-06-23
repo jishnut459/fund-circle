@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import { getLoanEligibility } from "@/lib/actions"
 import { monthsUntil } from "@/lib/loans"
 import LoanReviewDialog from "@/components/loans/LoanReviewDialog"
@@ -38,7 +39,7 @@ export default async function LoansPage({ params }: { params: Promise<{ circleId
 
   const maxTermMonths = circle?.end_date ? monthsUntil(circle.end_date) : undefined
   const fixedRatePct = Number(circle?.loan_interest_rate_pct ?? 0)
-  const isAdmin = isAdminOrOwner(membership.role)
+  const isAdmin = isAdminOrOwner(resolveEffectiveRole(membership.role, await getViewPreference(circleId)))
 
   // My loans
   const { data: myLoans } = await supabase
