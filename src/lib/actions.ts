@@ -32,6 +32,9 @@ export async function createFundCircle(name: string, description: string, amount
   if (loanSettings && Math.round((loanSettings.assetAllocationPct + loanSettings.loanAllocationPct) * 100) !== 10000) {
     return { success: false, error: "Asset and loan allocation percentages must add up to 100" }
   }
+  if (loanSettings && loanSettings.loanAllocationPct > 0 && !(loanSettings.loanInterestRatePct > 0)) {
+    return { success: false, error: "Set a loan interest rate above 0% when lending is enabled" }
+  }
 
   const startDate = options?.startDate || null
   const endDate = options?.endDate || null
@@ -1796,6 +1799,9 @@ export async function updateAssetRecordValue(recordId: string, currentValue: num
 export async function updateLoanSettings(circleId: string, settings: LoanSettings, actorUserId: string): Promise<ActionResult> {
   if (Math.round((settings.assetAllocationPct + settings.loanAllocationPct) * 100) !== 10000) {
     return { success: false, error: "Asset and loan allocation percentages must add up to 100%" }
+  }
+  if (settings.loanAllocationPct > 0 && !(settings.loanInterestRatePct > 0)) {
+    return { success: false, error: "Set a loan interest rate above 0% when lending is enabled" }
   }
 
   const supabase = createAdminSupabaseClient()

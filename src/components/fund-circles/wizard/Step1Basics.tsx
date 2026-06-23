@@ -192,7 +192,7 @@ export default function Step1Basics({ initialData, onNext }: Step1BasicsProps) {
           <Link href="/circles">Cancel</Link>
         </Button>
         <Button onClick={handleNext} aria-disabled={!canProceed}>
-          Next: Loan Settings
+          Next: Rules
         </Button>
       </div>
     </div>

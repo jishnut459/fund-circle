@@ -151,7 +151,7 @@ export default async function CircleSettingsPage({
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
                 <HandCoins className="h-4 w-4 text-teal" />
-                Loan &amp; Asset Settings
+                Contributions &amp; Lending
               </CardTitle>
             </CardHeader>
             <CardContent>

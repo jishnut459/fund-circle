@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 
 const STEPS = [
   { number: 1, label: "Basics" },
-  { number: 2, label: "Loans" },
+  { number: 2, label: "Rules" },
   { number: 3, label: "Members" },
   { number: 4, label: "Review" },
 ]

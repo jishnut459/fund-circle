@@ -32,9 +32,12 @@ export const PLAN_MEMBER_LIMITS: Record<string, number> = {
   premium: Infinity,
 }
 
+// Default to savings-only (no lending). Creators opt into lending in step 2,
+// which then requires a real interest rate. maxLoan caps stay at sensible
+// values so they're pre-filled if lending is turned on.
 const DEFAULT_LOAN_SETTINGS: LoanSettings = {
-  assetAllocationPct: 0,
-  loanAllocationPct: 100,
+  assetAllocationPct: 100,
+  loanAllocationPct: 0,
   loanInterestRatePct: 0,
   maxLoanPctOfContribution: 90,
   maxLoanPctOfLendingPool: 10,

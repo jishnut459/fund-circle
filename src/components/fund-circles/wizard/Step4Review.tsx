@@ -64,27 +64,6 @@ function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) 
   )
 }
 
-const DEFAULT_LOAN: LoanSettings = {
-  assetAllocationPct: 0,
-  loanAllocationPct: 100,
-  loanInterestRatePct: 0,
-  maxLoanPctOfContribution: 90,
-  maxLoanPctOfLendingPool: 10,
-  contributionLateFee: 0,
-  contributionGraceDays: 0,
-  loanLateFee: 0,
-  loanGraceDays: 0,
-}
-
-function isDefaultLoanSettings(s: LoanSettings): boolean {
-  return (
-    s.assetAllocationPct === DEFAULT_LOAN.assetAllocationPct &&
-    s.loanAllocationPct === DEFAULT_LOAN.loanAllocationPct &&
-    s.loanInterestRatePct === DEFAULT_LOAN.loanInterestRatePct &&
-    s.contributionLateFee === DEFAULT_LOAN.contributionLateFee
-  )
-}
-
 export default function Step4Review({ userId, step1, step2, step3, onBack, onEditStep, onCreated }: Step4ReviewProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -152,7 +131,7 @@ export default function Step4Review({ userId, step1, step2, step3, onBack, onEdi
     goToDashboard(circleId)
   }
 
-  const loanIsDefault = isDefaultLoanSettings(step2)
+  const lendingEnabled = step2.loanAllocationPct > 0
 
   return (
     <div className="space-y-6">
@@ -179,19 +158,25 @@ export default function Step4Review({ userId, step1, step2, step3, onBack, onEdi
         </div>
       </ReviewSection>
 
-      {/* Loan settings */}
-      <ReviewSection title={`Loan & Asset Settings${loanIsDefault ? " (defaults)" : ""}`} onEdit={!createdCircleId ? () => onEditStep(2) : undefined}>
+      {/* Rules */}
+      <ReviewSection title="Rules" onEdit={!createdCircleId ? () => onEditStep(2) : undefined}>
         <div className="rounded-xl border border-[var(--border-light)] px-4 divide-y divide-[var(--border-light)]">
           <ReviewRow
-            label="Allocation"
-            value={`${step2.assetAllocationPct}% asset · ${step2.loanAllocationPct}% loans`}
+            label="Contribution late fee"
+            value={
+              step2.contributionLateFee > 0
+                ? `${formatCurrency(step2.contributionLateFee)} after ${step2.contributionGraceDays} day${step2.contributionGraceDays !== 1 ? "s" : ""}`
+                : "None"
+            }
           />
-          <ReviewRow label="Loan interest" value={`${step2.loanInterestRatePct}% p.a.`} />
-          {step2.contributionLateFee > 0 && (
-            <ReviewRow
-              label="Contribution late fee"
-              value={`${formatCurrency(step2.contributionLateFee)} after ${step2.contributionGraceDays} day${step2.contributionGraceDays !== 1 ? "s" : ""}`}
-            />
+          {lendingEnabled ? (
+            <>
+              <ReviewRow label="Lending" value="Members can borrow" />
+              <ReviewRow label="Loan interest" value={`${step2.loanInterestRatePct}% p.a.`} />
+              <ReviewRow label="Available to lend" value={`${step2.loanAllocationPct}% of contributions`} />
+            </>
+          ) : (
+            <ReviewRow label="Lending" value="Savings only — no loans" />
           )}
         </div>
       </ReviewSection>
