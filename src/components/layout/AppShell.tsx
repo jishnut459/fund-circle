@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { isAdminOrOwner } from "@/lib/permissions"
 import UserDropdown from "./UserDropdown"
-import ViewModeToggle from "./ViewModeToggle"
+import ViewPreviewBanner from "./ViewPreviewBanner"
 import {
   PiggyBank,
   LayoutDashboard,
@@ -82,11 +82,6 @@ function AppSidebar({
               <ChevronLeft className="h-3 w-3" />
               All Circles
             </Link>
-            {canSwitchView && (
-              <div className="mt-3">
-                <ViewModeToggle viewMode={viewMode} />
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
@@ -139,6 +134,8 @@ function AppSidebar({
             role: currentUser.circleRole ?? "",
             avatarUrl: currentUser.avatarUrl,
           }}
+          canSwitchView={canSwitchView}
+          viewMode={viewMode}
         />
       </div>
     </aside>
@@ -286,13 +283,14 @@ function MobileHeader({
               {circleName}
             </span>
           </div>
-          <UserDropdown user={user} compact side="bottom" />
+          <UserDropdown
+            user={user}
+            compact
+            side="bottom"
+            canSwitchView={canSwitchView}
+            viewMode={viewMode}
+          />
         </div>
-        {canSwitchView && (
-          <div className="flex items-center justify-end px-3 pb-2">
-            <ViewModeToggle viewMode={viewMode} />
-          </div>
-        )}
       </div>
     )
   }
@@ -343,6 +341,7 @@ export default function AppShell({
           viewMode={viewMode}
         />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
+          {canSwitchView && viewMode === "member" && <ViewPreviewBanner />}
           <div className="p-4 md:p-6 lg:p-8">{children}</div>
         </main>
       </div>

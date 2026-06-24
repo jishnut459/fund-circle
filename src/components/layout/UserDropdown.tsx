@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useRef, useEffect, useTransition } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { Eye } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+import { setCircleViewMode } from "@/lib/actions"
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -24,14 +26,31 @@ export default function UserDropdown({
   user,
   compact = false,
   side = "top",
+  canSwitchView = false,
+  viewMode = "admin",
 }: {
   user: UserInfo
   compact?: boolean
   side?: "top" | "bottom"
+  canSwitchView?: boolean
+  viewMode?: "admin" | "member"
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const circleId = pathname.split("/")[2] ?? ""
+  const showViewControl = canSwitchView && Boolean(circleId)
+
+  const switchView = (mode: "admin" | "member") => {
+    if (pending || !circleId) return
+    startTransition(async () => {
+      await setCircleViewMode(circleId, mode)
+      setOpen(false)
+      router.refresh()
+    })
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -120,6 +139,16 @@ export default function UserDropdown({
                   </span>
                 )}
               </div>
+            )}
+            {showViewControl && (
+              <button
+                onClick={() => switchView(viewMode === "admin" ? "member" : "admin")}
+                disabled={pending}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--border-light)] rounded-lg transition-colors disabled:opacity-60"
+              >
+                <Eye className="h-4 w-4 text-[var(--text-muted)]" aria-hidden />
+                {viewMode === "admin" ? "Preview as member" : "Switch to admin view"}
+              </button>
             )}
             <button
               onClick={handleSignOut}
