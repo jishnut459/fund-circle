@@ -147,53 +147,55 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
       />
 
       {currentCycle ? (
-        <Card className="mb-8 overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
-              <div>
-                <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">{currentCycle.label}</h3>
-                {currentCycle.dueDate && (
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Due {formatISODate(currentCycle.dueDate)}</p>
+        <Link href={`/circles/${currentCycle.circleId}/cycles/${currentCycle.id}`} className="block group">
+          <Card className="mb-8 overflow-hidden transition-shadow group-hover:shadow-[var(--shadow-card-hover)] group-hover:border-[var(--border-color)]">
+            <CardContent className="p-0">
+              <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
+                <div>
+                  <h3 className="font-bold text-base text-[var(--text-primary)] leading-tight">{currentCycle.label}</h3>
+                  {currentCycle.dueDate && (
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">Due {formatISODate(currentCycle.dueDate)}</p>
+                  )}
+                </div>
+                <Badge variant={STATUS_BADGE[currentCycle.status] ?? "default"} className="text-[10px] shrink-0 mt-0.5">
+                  {currentCycle.status.replace(/_/g, " ")}
+                </Badge>
+              </div>
+              <div className="px-5 pb-4 sm:px-6">
+                <div className="flex items-end justify-between gap-2 mb-1">
+                  <p className="text-5xl font-bold font-tabular text-[var(--text-primary)] leading-none">
+                    {formatCurrency(currentCycle.paidAmount)}
+                  </p>
+                  <p className="text-xl font-bold font-tabular text-teal mb-0.5">{progress}%</p>
+                </div>
+                <p className="text-sm text-[var(--text-muted)] mt-2 mb-4">
+                  of {formatCurrency(currentCycle.expectedAmount)} expected
+                </p>
+                <div className="w-full h-2 bg-[var(--border-light)] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${STATUS_BAR_COLOR[currentCycle.status] ?? STATUS_BAR_COLOR.unpaid}`}
+                    style={{ width: `${Math.min(progress, 100)}%` }}
+                  />
+                </div>
+              </div>
+              <div className="border-t border-[var(--border-light)] px-5 py-3 sm:px-6 flex items-center gap-4 flex-wrap text-xs text-[var(--text-muted)]">
+                <span className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Repeat className="h-3.5 w-3.5" />
+                  {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
+                </span>
+                {totalPaid > 0 && (
+                  <span className="ml-auto font-medium text-[var(--text-secondary)]">
+                    {formatCurrency(totalPaid)} paid all-time
+                  </span>
                 )}
               </div>
-              <Badge variant={STATUS_BADGE[currentCycle.status] ?? "default"} className="text-[10px] shrink-0 mt-0.5">
-                {currentCycle.status.replace(/_/g, " ")}
-              </Badge>
-            </div>
-            <div className="px-5 pb-4 sm:px-6">
-              <div className="flex items-end justify-between gap-2 mb-1">
-                <p className="text-5xl font-bold font-tabular text-[var(--text-primary)] leading-none">
-                  {formatCurrency(currentCycle.paidAmount)}
-                </p>
-                <p className="text-xl font-bold font-tabular text-teal mb-0.5">{progress}%</p>
-              </div>
-              <p className="text-sm text-[var(--text-muted)] mt-2 mb-4">
-                of {formatCurrency(currentCycle.expectedAmount)} expected
-              </p>
-              <div className="w-full h-2 bg-[var(--border-light)] rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${STATUS_BAR_COLOR[currentCycle.status] ?? STATUS_BAR_COLOR.unpaid}`}
-                  style={{ width: `${Math.min(progress, 100)}%` }}
-                />
-              </div>
-            </div>
-            <div className="border-t border-[var(--border-light)] px-5 py-3 sm:px-6 flex items-center gap-4 flex-wrap text-xs text-[var(--text-muted)]">
-              <span className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" />
-                {circleMeta.memberCount} member{circleMeta.memberCount !== 1 ? "s" : ""}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Repeat className="h-3.5 w-3.5" />
-                {formatCurrency(circleMeta.amount)} / {circleMeta.frequency.replace(/_/g, " ")}
-              </span>
-              {totalPaid > 0 && (
-                <span className="ml-auto font-medium text-[var(--text-secondary)]">
-                  {formatCurrency(totalPaid)} paid all-time
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       ) : (
         <Card className="mb-8">
           <CardContent className="p-5 sm:p-6">
@@ -251,9 +253,10 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
                 const Icon = STATUS_ICON[cycle.status] ?? Circle
 
                 return (
-                  <div
+                  <Link
                     key={cycle.id}
-                    className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border-light)]"
+                    href={`/circles/${cycle.circleId}/cycles/${cycle.id}`}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border-light)] transition-shadow hover:shadow-[var(--shadow-card-hover)] hover:border-[var(--border-color)]"
                   >
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${STATUS_ICON_COLOR[cycle.status] ?? STATUS_ICON_COLOR.unpaid}`}>
                       <Icon className="h-4.5 w-4.5" />
@@ -285,7 +288,7 @@ export default function MemberDashboard({ data }: { data: MemberData }) {
                         {cycleProgress}%
                       </p>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
