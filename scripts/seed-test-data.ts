@@ -42,6 +42,7 @@ const OWNER_ROLE_BY_CIRCLE: Role[] = ["owner", "owner", "member"]
  */
 const TESTERS: { name: string; email: string; roles: Role[] }[] = [
   { name: "Saumya", email: "gsaumya106@gmail.com", roles: ["member", "admin", "owner"] },
+  { name: "Shivaprasad", email: "shivaprasadmathara007@gmail.com", roles: ["admin", "member", "member"] },
 ]
 
 // Fixed circle ids so re-runs can clean up deterministically.
@@ -73,6 +74,18 @@ function monthsAgo(n: number): Date {
 type PgError = { message: string } | null
 function check(label: string, error: PgError): void {
   if (error) throw new Error(`${label}: ${error.message}`)
+}
+
+/** Find an auth.users id by email (paginated admin lookup). Returns null if none. */
+async function findAuthUserId(db: SupabaseClient, email: string): Promise<string | null> {
+  const perPage = 1000
+  for (let page = 1; ; page++) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage })
+    if (error) throw new Error(`listUsers: ${error.message}`)
+    const match = data.users.find((u) => (u.email ?? "").toLowerCase() === email)
+    if (match) return match.id
+    if (data.users.length < perPage) return null
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -124,7 +137,7 @@ const CIRCLES: CircleConfig[] = [
     loan_grace_days: 5,
     start_date: null,
     end_date: null,
-    fillerNames: ["Ramesh Iyer", "Sunita Rao", "Arjun Mehta"],
+    fillerNames: ["Ramesh Iyer", "Sunita Rao", "Arjun Mehta", "Deepa Shah", "Manoj Gupta", "Kavita Reddy", "Sanjay Verma", "Pooja Desai", "Rahul Nair", "Anjali Menon"],
     pastCycleCount: 4,
   },
   {
@@ -147,7 +160,7 @@ const CIRCLES: CircleConfig[] = [
     loan_grace_days: 0,
     start_date: toISODate(monthsAgo(12)),
     end_date: toISODate(addMonths(NOW, 12)),
-    fillerNames: ["Priya Nair", "Karan Singh"],
+    fillerNames: ["Priya Nair", "Karan Singh", "Neha Kapoor", "Rohit Sharma", "Divya Pillai", "Amit Joshi", "Sneha Agarwal", "Vivek Bhat", "Ritu Malhotra", "Gaurav Saxena"],
     pastCycleCount: 3,
   },
   {
@@ -170,7 +183,7 @@ const CIRCLES: CircleConfig[] = [
     loan_grace_days: 3,
     start_date: null,
     end_date: null,
-    fillerNames: ["Lakshmi Devi", "Vikram Patel", "Meena Kumari", "Suresh Babu", "Anita Joshi"],
+    fillerNames: ["Lakshmi Devi", "Vikram Patel", "Meena Kumari", "Suresh Babu", "Anita Joshi", "Harish Chand", "Geeta Yadav", "Mohan Lal", "Radha Krishnan", "Shanti Bai"],
     pastCycleCount: 6,
   },
 ]
@@ -450,34 +463,63 @@ async function main(): Promise<void> {
   const ownerName: string = ownerRow.name ?? "Owner"
   console.log(`Owner resolved: ${ownerName} (${ownerId})`)
 
-  // 2. Idempotent cleanup (order matters: audit logs -> managed profiles -> circles)
+  // 2. Idempotent cleanup.
+  //
+  // Several columns reference profiles WITHOUT cascade (contribution_payments
+  // .submitted_by, loans.requested_by, loan_payments.submitted_by), so a managed
+  // profile can't be deleted while its payment/loan rows exist. We therefore
+  // delete the CIRCLES first — that cascades away all those child rows — and
+  // only then delete the managed profiles. Their ids are captured up front
+  // because deleting a circle nulls the fillers' created_in_circle link.
   console.log("Cleaning up any previous seed...")
   const circleIds: string[] = [...CIRCLE_IDS]
-  check("delete audit_logs", (await db.from("audit_logs").delete().in("circle_id", circleIds)).error)
-  check(
-    "delete managed profiles (by circle)",
-    (await db.from("profiles").delete().eq("is_managed", true).in("created_in_circle", circleIds)).error
-  )
-  check(
-    "delete managed profiles (by tester email)",
-    (await db.from("profiles").delete().eq("is_managed", true).in("email", TESTERS.map((t) => t.email.toLowerCase()))).error
-  )
-  check("delete circles", (await db.from("fund_circles").delete().in("id", circleIds)).error)
+  const testerEmails = TESTERS.map((t) => t.email.toLowerCase())
 
-  // 3. Tester managed profiles (one per tester, shared across circles)
-  const testerIds: string[] = TESTERS.map(() => uuid())
-  const testerProfiles = TESTERS.map((t, i) => ({
-    id: testerIds[i],
-    email: t.email.toLowerCase(),
-    name: t.name,
-    is_managed: true,
-    managed_by: ownerId,
-    // Left null: circles don't exist yet at this point, and cleanup matches
-    // testers by email. (Filler profiles set this since their circle exists.)
-    created_in_circle: null,
-  }))
-  check("insert tester profiles", (await db.from("profiles").insert(testerProfiles)).error)
-  console.log(`Created ${testerProfiles.length} managed tester profiles.`)
+  const byCircle = (await db.from("profiles").select("id").eq("is_managed", true).in("created_in_circle", circleIds)).data ?? []
+  const byEmail = (await db.from("profiles").select("id").eq("is_managed", true).in("email", testerEmails)).data ?? []
+  const managedIds = [...new Set([...byCircle, ...byEmail].map((r) => r.id as string))]
+
+  check("delete audit_logs", (await db.from("audit_logs").delete().in("circle_id", circleIds)).error)
+  check("delete circles", (await db.from("fund_circles").delete().in("id", circleIds)).error)
+  if (managedIds.length) {
+    check("delete managed profiles", (await db.from("profiles").delete().in("id", managedIds)).error)
+  }
+
+  // 3. Resolve each tester to a profile id. Prefer an existing real account
+  // (they've already signed in); otherwise, if an auth user exists but has no
+  // profile yet, create a real profile for them; otherwise create a managed
+  // (offline) profile that is claimed on first sign-in. Real testers see their
+  // seeded history immediately — no claim step needed.
+  const testerIds: string[] = []
+  const testerModes: string[] = []
+  const managedTesterProfiles: Record<string, unknown>[] = []
+  for (const t of TESTERS) {
+    const email = t.email.toLowerCase()
+    const real = (await db.from("profiles").select("id").eq("email", email).eq("is_managed", false).maybeSingle()).data
+    if (real) {
+      testerIds.push(real.id as string)
+      testerModes.push("real account (already signed in)")
+      continue
+    }
+    const authId = await findAuthUserId(db, email)
+    if (authId) {
+      check(
+        "create real profile for auth user",
+        (await db.from("profiles").upsert({ id: authId, email, name: t.name, is_managed: false }, { onConflict: "id" })).error
+      )
+      testerIds.push(authId)
+      testerModes.push("real account (auth user; profile created)")
+      continue
+    }
+    const id = uuid()
+    managedTesterProfiles.push({ id, email, name: t.name, is_managed: true, managed_by: ownerId, created_in_circle: null })
+    testerIds.push(id)
+    testerModes.push("managed (claims on first sign-in)")
+  }
+  if (managedTesterProfiles.length) {
+    check("insert managed tester profiles", (await db.from("profiles").insert(managedTesterProfiles)).error)
+  }
+  TESTERS.forEach((t, i) => console.log(`  tester ${t.name} <${t.email}>: ${testerModes[i]}`))
 
   // 4. Per-circle seeding
   for (let ci = 0; ci < CIRCLES.length; ci++) {
