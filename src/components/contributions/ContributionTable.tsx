@@ -80,6 +80,15 @@ export default function ContributionTable({
         const isOwnContribution = c.userId === currentUserId
         const isFullyPaid = c.status === "paid" || c.status === "overpaid"
 
+        // Actions live in a footer below the summary row so the amount never
+        // competes for space with buttons. A pending submission takes priority
+        // for admins (verify/reject); otherwise they get a record/edit action.
+        const adminPending = canEdit && Boolean(pending)
+        const showPendingChip = Boolean(pending) && (canEdit || isOwnContribution)
+        const showRecordEdit = canEdit && !pending
+        const memberCanPay = !canEdit && isOwnContribution && !pending && !isFullyPaid
+        const showFooter = showPendingChip || showRecordEdit || memberCanPay
+
         return (
           <div
             key={c.id}
@@ -113,53 +122,6 @@ export default function ContributionTable({
                   </p>
                 )}
               </div>
-              <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5 pl-1 border-l border-[var(--border-light)] empty:hidden">
-                {canEdit && pending && (
-                  <VerifyPaymentActions
-                    paymentId={pending.id}
-                    contributionId={c.id}
-                    circleId={circleId}
-                    userId={currentUserId}
-                    amount={pending.amount}
-                    submittedByName={pending.submittedByName}
-                    onOptimisticUpdate={onOptimisticUpdate}
-                  />
-                )}
-                {canEdit && (
-                  <EditPaymentDialog
-                    contributionId={c.id}
-                    circleId={circleId}
-                    userId={currentUserId}
-                    memberName={c.userName}
-                    expectedAmount={c.expectedAmount}
-                    lateFee={c.lateFee}
-                    currentPaid={c.paidAmount}
-                    onOptimisticUpdate={onOptimisticUpdate}
-                  />
-                )}
-                {/* Member's own row: a clear CTA to record their payment, a
-                    read-only pending indicator while awaiting admin verification,
-                    or nothing once fully paid (the status badge says it all). */}
-                {!canEdit && isOwnContribution && pending && (
-                  <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                    <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-                    <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
-                      {formatCurrency(pending.amount)} pending
-                    </span>
-                  </div>
-                )}
-                {!canEdit && isOwnContribution && !pending && !isFullyPaid && (
-                  <SubmitPaymentDialog
-                    contributionId={c.id}
-                    circleId={circleId}
-                    userId={currentUserId}
-                    expectedAmount={c.expectedAmount}
-                    lateFee={c.lateFee}
-                    currentPaid={c.paidAmount}
-                    onOptimisticUpdate={onOptimisticUpdate}
-                  />
-                )}
-              </div>
               <ChevronDown
                 className={cn(
                   "h-4 w-4 text-[var(--text-muted)] shrink-0 transition-transform",
@@ -167,6 +129,55 @@ export default function ContributionTable({
                 )}
               />
             </div>
+            {showFooter && (
+              <div className="flex items-center gap-2 px-3 pb-3 pt-0">
+                {showPendingChip && pending && (
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 dark:border-amber-800 dark:bg-amber-900/20">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span className="truncate text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                      {formatCurrency(pending.amount)} pending
+                      {pending.submittedByName ? ` · ${pending.submittedByName}` : ""}
+                    </span>
+                  </div>
+                )}
+                <div className="ml-auto flex shrink-0 items-center gap-2 empty:hidden">
+                  {adminPending && pending && (
+                    <VerifyPaymentActions
+                      paymentId={pending.id}
+                      contributionId={c.id}
+                      circleId={circleId}
+                      userId={currentUserId}
+                      amount={pending.amount}
+                      submittedByName={pending.submittedByName}
+                      onOptimisticUpdate={onOptimisticUpdate}
+                    />
+                  )}
+                  {showRecordEdit && (
+                    <EditPaymentDialog
+                      contributionId={c.id}
+                      circleId={circleId}
+                      userId={currentUserId}
+                      memberName={c.userName}
+                      expectedAmount={c.expectedAmount}
+                      lateFee={c.lateFee}
+                      currentPaid={c.paidAmount}
+                      onOptimisticUpdate={onOptimisticUpdate}
+                    />
+                  )}
+                  {memberCanPay && (
+                    <SubmitPaymentDialog
+                      contributionId={c.id}
+                      circleId={circleId}
+                      userId={currentUserId}
+                      expectedAmount={c.expectedAmount}
+                      lateFee={c.lateFee}
+                      currentPaid={c.paidAmount}
+                      onOptimisticUpdate={onOptimisticUpdate}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
             {isExpanded && (
               <div className="px-3 pb-3 pt-0 border-t border-[var(--border-light)] mt-0">
                 <div className="flex flex-wrap gap-x-6 gap-y-1.5 pt-3 text-xs">

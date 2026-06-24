@@ -13,7 +13,7 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { CheckCircle2, XCircle, Clock } from "lucide-react"
+import { CheckCircle2, XCircle } from "lucide-react"
 import { verifyContributionPayment, rejectContributionPayment } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
 import type { ContribOptimisticUpdate } from "./ContributionTable"
@@ -63,22 +63,24 @@ export default function VerifyPaymentActions({
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-        <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-        <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
-          {formatCurrency(amount)} pending{submittedByName ? ` · ${submittedByName}` : ""}
-        </span>
-      </div>
-      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-        onClick={handleVerify} disabled={loading !== null} title="Verify payment">
-        <CheckCircle2 className="h-4 w-4" />
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-300"
+        onClick={handleVerify}
+        disabled={loading !== null}
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        {loading === "verify" ? "Verifying…" : "Verify"}
       </Button>
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogTrigger asChild>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-            disabled={loading !== null} title="Reject payment">
-            <XCircle className="h-4 w-4" />
+          <Button size="sm" variant="ghost"
+            className="h-8 gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20"
+            disabled={loading !== null}>
+            <XCircle className="h-3.5 w-3.5" />
+            Reject
           </Button>
         </DialogTrigger>
         <DialogContent>

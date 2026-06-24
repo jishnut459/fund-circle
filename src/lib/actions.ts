@@ -449,6 +449,52 @@ export async function closeCycle(cycleId: string, userId: string, circleId: stri
 }
 
 /**
+ * Close a cycle automatically once every contribution is fully settled, so admins
+ * never have to remember to. No-op if the cycle is already closed or anything is
+ * still outstanding. Audited distinctly from a manual close. Best-effort: a failure
+ * here must not fail the payment that triggered it.
+ */
+async function maybeAutoCloseCycle(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  cycleId: string,
+  circleId: string,
+  userId: string
+): Promise<void> {
+  const { data: cycle } = await supabase
+    .from("contribution_cycles")
+    .select("status")
+    .eq("id", cycleId)
+    .single()
+  if (!cycle || cycle.status === "closed") return
+
+  const { data: rows } = await supabase
+    .from("contributions_with_status")
+    .select("status")
+    .eq("contribution_cycle_id", cycleId)
+  if (!rows || rows.length === 0) return
+  const allSettled = rows.every((r) => r.status === "paid" || r.status === "overpaid")
+  if (!allSettled) return
+
+  // Guard the write against a concurrent close so we don't double-log.
+  const { data: closed, error } = await supabase
+    .from("contribution_cycles")
+    .update({ status: "closed" })
+    .eq("id", cycleId)
+    .neq("status", "closed")
+    .select("id")
+  if (error || !closed || closed.length === 0) return
+  await writeAuditLog({
+    circleId,
+    userId,
+    action: "cycle_auto_closed",
+    entityType: "contribution_cycle",
+    entityId: cycleId,
+    newValue: { reason: "all_contributions_collected" },
+  })
+  revalidatePath(`/circles/${circleId}/cycles/${cycleId}`)
+}
+
+/**
  * The flat late fee to lock onto a contribution when a payment is recorded.
  * Once a fee has been levied it never changes; otherwise it applies only if
  * the cycle is past its due date + grace period and a fee is configured.
@@ -582,6 +628,7 @@ export async function verifyContributionPayment(
     previousValue: { paid_amount: previousPaid },
     newValue: { paid_amount: newPaid, payment_amount: Number(payment.amount), late_fee: lateFee },
   })
+  await maybeAutoCloseCycle(supabase, contrib.contribution_cycle_id, circleId, userId)
   revalidatePath(`/circles/${circleId}/cycles`)
   return { success: true, data: undefined }
 }
@@ -683,6 +730,7 @@ export async function editContributionPayment(
     previousValue: { paid_amount: previousPaid, late_fee: Number(contrib.late_fee) },
     newValue: { paid_amount: newPaidAmount, late_fee: lateFee, notes: notes || undefined },
   })
+  await maybeAutoCloseCycle(supabase, contrib.contribution_cycle_id, circleId, userId)
   revalidatePath(`/circles/${circleId}/cycles`)
   return { success: true, data: undefined }
 }

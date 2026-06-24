@@ -13,7 +13,7 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Pencil } from "lucide-react"
+import { Pencil, Plus } from "lucide-react"
 import { editContributionPayment } from "@/lib/actions"
 import { formatCurrency } from "@/lib/format"
 import type { ContribOptimisticUpdate } from "./ContributionTable"
@@ -86,25 +86,24 @@ export default function EditPaymentDialog({
 
   const newAmount = Number(amount)
   const diff = newAmount - currentPaid
+  const isRecording = currentPaid === 0
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          title="Edit payment"
+          variant={isRecording ? "default" : "outline"}
+          className="h-8 gap-1.5"
         >
-          <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--border-color)] text-[var(--text-muted)] hover:border-teal hover:bg-teal-50 hover:text-teal transition-colors">
-            <Pencil className="h-3 w-3" />
-          </div>
+          {isRecording ? <Plus className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+          {isRecording ? "Record payment" : "Edit"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Edit Payment{memberName ? ` — ${memberName}` : ""}
+            {isRecording ? "Record Payment" : "Edit Payment"}{memberName ? ` — ${memberName}` : ""}
           </DialogTitle>
           <DialogDescription>
             {amount !== ""
@@ -113,7 +112,7 @@ export default function EditPaymentDialog({
                 : diff < 0
                   ? `This will reduce the paid amount by ${formatCurrency(Math.abs(diff))}.`
                   : "No change to the paid amount."
-              : "Set the correct total amount paid by this member."}
+              : "Enter the total amount paid by this member."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -171,7 +170,7 @@ export default function EditPaymentDialog({
             disabled={loading || amount === "" || Number(amount) < 0 || Number(amount) === currentPaid}
             className="w-full"
           >
-            {loading ? "Saving..." : "Save Correction"}
+            {loading ? "Saving..." : isRecording ? "Record Payment" : "Save Correction"}
           </Button>
         </form>
       </DialogContent>

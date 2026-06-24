@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { isAdminOrOwner } from "@/lib/permissions"
 import UserDropdown from "./UserDropdown"
-import ViewPreviewBanner from "./ViewPreviewBanner"
 import {
   PiggyBank,
   LayoutDashboard,
@@ -341,7 +340,6 @@ export default function AppShell({
           viewMode={viewMode}
         />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
-          {canSwitchView && viewMode === "member" && <ViewPreviewBanner />}
           <div className="p-4 md:p-6 lg:p-8">{children}</div>
         </main>
       </div>

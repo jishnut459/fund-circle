@@ -40,6 +40,8 @@ function formatAuditAction(entry: AuditEntry): string {
     }
     case "cycle_closed":
       return `${entry.userName} closed a contribution cycle`
+    case "cycle_auto_closed":
+      return `Cycle closed automatically — all contributions collected`
     case "member_role_changed": {
       const v = entry.newValue as { role: string } | null
       return `${entry.userName} changed a member's role to ${v?.role ?? ""}`
