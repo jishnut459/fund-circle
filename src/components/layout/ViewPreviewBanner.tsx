@@ -29,22 +29,22 @@ export default function ViewPreviewBanner() {
     <div
       role="status"
       className={cn(
-        "sticky top-0 z-20 flex items-center justify-between gap-3 px-4 py-2 md:px-6 lg:px-8",
-        "border-b border-teal-100 bg-teal-50 dark:border-teal-900/40 dark:bg-teal-900/20",
+        "sticky top-0 z-20 flex items-center justify-between gap-3 px-4 py-1.5 md:px-6 lg:px-8",
+        "border-b border-border bg-muted/40 text-muted-foreground",
         pending && "opacity-60"
       )}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <Eye className="h-4 w-4 text-teal shrink-0" aria-hidden />
-        <span className="text-xs font-medium text-teal truncate">
-          Previewing as member — this is what members see.
+        <Eye className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden />
+        <span className="text-xs truncate">
+          Previewing as member
         </span>
       </div>
       <button
         type="button"
         onClick={backToAdmin}
         disabled={pending}
-        className="shrink-0 inline-flex items-center rounded-lg bg-teal px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-teal-700 disabled:opacity-60"
+        className="shrink-0 text-xs font-medium text-teal underline-offset-2 transition-colors hover:underline disabled:opacity-60"
       >
         Back to admin
       </button>
