@@ -346,12 +346,78 @@ export async function completeInviteSession(): Promise<ActionResult<{ redirectTo
   return { success: true, data: { redirectTo: "/circles" } }
 }
 
-export async function removeCircleMember(circleId: string, userId: string, actorUserId: string): Promise<ActionResult> {
-  if (!circleId || !userId) return { success: false, error: "Missing required fields" }
+export type MemberFinancialFootprint = {
+  hasPaidHistory: boolean
+  hasOutstandingDues: boolean
+  hasActiveLoan: boolean
+}
+
+// A member who has touched the fund's money is a permanent part of the ledger:
+// any recorded payment, any unpaid dues in an open cycle, or any in-flight loan
+// blocks removal. Computed from authoritative tables, never trusted from the UI.
+export async function getMemberFinancialFootprint(circleId: string, userId: string): Promise<MemberFinancialFootprint> {
   const supabase = createAdminSupabaseClient()
-  const { error } = await supabase.from("fund_circle_members").update({ active: false }).eq("fund_circle_id", circleId).eq("user_id", userId)
+
+  const { data: contributions } = await supabase
+    .from("contributions")
+    .select("paid_amount, expected_amount, late_fee, contribution_cycles!inner(status, fund_circle_id)")
+    .eq("user_id", userId)
+    .eq("contribution_cycles.fund_circle_id", circleId)
+
+  let hasPaidHistory = false
+  let hasOutstandingDues = false
+  for (const c of contributions ?? []) {
+    const paid = Number(c.paid_amount ?? 0)
+    const expected = Number(c.expected_amount ?? 0)
+    const lateFee = Number(c.late_fee ?? 0)
+    // contribution_cycles!inner returns the joined row; supabase types it as an array.
+    const cycle = Array.isArray(c.contribution_cycles) ? c.contribution_cycles[0] : c.contribution_cycles
+    if (paid > 0) hasPaidHistory = true
+    if (cycle?.status === "open" && paid < expected + lateFee) hasOutstandingDues = true
+  }
+
+  const { data: loans } = await supabase
+    .from("loans")
+    .select("id")
+    .eq("fund_circle_id", circleId)
+    .eq("user_id", userId)
+    .in("status", ["pending_request", "active"])
+    .limit(1)
+
+  return { hasPaidHistory, hasOutstandingDues, hasActiveLoan: (loans?.length ?? 0) > 0 }
+}
+
+// Permanently removes a member from a circle. Only members with zero financial
+// footprint can be removed at all — this undoes mistakes (someone added but never
+// assigned money). Anyone with payments, dues, or loans stays on the ledger.
+export async function deleteCircleMemberPermanently(circleId: string, userId: string, actorUserId: string): Promise<ActionResult> {
+  if (!circleId || !userId || !actorUserId) return { success: false, error: "Missing required fields" }
+  const supabase = createAdminSupabaseClient()
+
+  const { data: actorMembership } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", actorUserId).eq("active", true).maybeSingle()
+  if (!actorMembership || !isAdminOrOwner(actorMembership.role)) return { success: false, error: "You don't have permission to remove members from this circle." }
+
+  const { data: target } = await supabase.from("fund_circle_members").select("role").eq("fund_circle_id", circleId).eq("user_id", userId).maybeSingle()
+  if (!target) return { success: false, error: "Member not found in circle" }
+  if (target.role === "owner") return { success: false, error: "The circle owner can't be removed." }
+
+  const footprint = await getMemberFinancialFootprint(circleId, userId)
+  if (footprint.hasPaidHistory || footprint.hasOutstandingDues || footprint.hasActiveLoan) {
+    return { success: false, error: "This member has financial records and can't be removed." }
+  }
+
+  const { error } = await supabase.from("fund_circle_members").delete().eq("fund_circle_id", circleId).eq("user_id", userId)
   if (error) return { success: false, error: "Failed to remove member" }
-  await writeAuditLog({ circleId, userId: actorUserId, action: "member_removed_from_circle", entityType: "fund_circle_member", newValue: { userId } })
+
+  // A managed profile exists only to represent an offline member. Once it has no
+  // remaining memberships, delete the orphan so it doesn't linger invisibly.
+  const { data: profile } = await supabase.from("profiles").select("is_managed").eq("id", userId).maybeSingle()
+  if (profile?.is_managed) {
+    const { count } = await supabase.from("fund_circle_members").select("*", { count: "exact", head: true }).eq("user_id", userId)
+    if (!count) await supabase.from("profiles").delete().eq("id", userId)
+  }
+
+  await writeAuditLog({ circleId, userId: actorUserId, action: "member_deleted_from_circle", entityType: "fund_circle_member", entityId: userId, newValue: { userId } })
   revalidatePath(`/circles/${circleId}/members`)
   return { success: true, data: undefined }
 }

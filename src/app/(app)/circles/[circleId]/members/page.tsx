@@ -99,6 +99,34 @@ export default async function CircleMembersPage({
 
   const profileMap = new Map(profileRows?.map((p) => [p.id, p]) ?? [])
 
+  // Financial footprint per member: removal is only offered to members who never
+  // touched the fund's money. Anyone with payments, open-cycle dues, or an
+  // in-flight loan is locked on the ledger.
+  const { data: contributionRows } = await supabase
+    .from("contributions")
+    .select("user_id, paid_amount, expected_amount, late_fee, contribution_cycles!inner(status, fund_circle_id)")
+    .eq("contribution_cycles.fund_circle_id", circleId)
+    .in("user_id", userIds)
+
+  const { data: loanRows } = await supabase
+    .from("loans")
+    .select("user_id")
+    .eq("fund_circle_id", circleId)
+    .in("user_id", userIds)
+    .in("status", ["pending_request", "active"])
+
+  const paidHistory = new Set<string>()
+  const outstandingDues = new Set<string>()
+  for (const c of contributionRows ?? []) {
+    const paid = Number(c.paid_amount ?? 0)
+    const expected = Number(c.expected_amount ?? 0)
+    const lateFee = Number(c.late_fee ?? 0)
+    const cycle = Array.isArray(c.contribution_cycles) ? c.contribution_cycles[0] : c.contribution_cycles
+    if (paid > 0) paidHistory.add(c.user_id)
+    if (cycle?.status === "open" && paid < expected + lateFee) outstandingDues.add(c.user_id)
+  }
+  const activeLoan = new Set((loanRows ?? []).map((l) => l.user_id))
+
   const members = rawMembers.map((m) => {
     const profile = profileMap.get(m.user_id)
     const isSelf = m.user_id === user.id
@@ -112,6 +140,9 @@ export default async function CircleMembersPage({
       inCircle: true,
       active: m.active,
       isManaged,
+      hasPaidHistory: paidHistory.has(m.user_id),
+      hasOutstandingDues: outstandingDues.has(m.user_id),
+      hasActiveLoan: activeLoan.has(m.user_id),
     }
   })
 
