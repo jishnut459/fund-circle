@@ -42,10 +42,6 @@ export default function UserDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const circleId = pathname.split("/")[2] ?? ""
   const showViewControl = canSwitchView && Boolean(circleId)
-  // Subtle, persistent cue of the admin's current view (replaces the old preview
-  // banner). Only meaningful for admins/owners, who can toggle the view.
-  const showViewBadge = showViewControl
-  const previewingAsMember = viewMode === "member"
 
   const switchView = (mode: "admin" | "member") => {
     if (pending || !circleId) return
@@ -83,24 +79,12 @@ export default function UserDropdown({
           compact ? "p-1.5" : "w-full px-3 py-2"
         )}
       >
-        <div className="relative shrink-0">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
-            <AvatarFallback className="bg-teal text-white font-medium">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          {showViewBadge && (
-            <span
-              aria-label={previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
-              title={previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
-              className={cn(
-                "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--bg-surface)]",
-                previewingAsMember ? "bg-amber-500" : "bg-teal"
-              )}
-            />
-          )}
-        </div>
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
+          <AvatarFallback className="bg-teal text-white font-medium">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
         {!compact && (
           <div className="min-w-0 flex-1 text-left">
             <p className="text-xs font-medium text-[var(--text-primary)] truncate">

@@ -37,14 +37,24 @@ function getSnapshot() {
   return activeCount
 }
 
-// Skip Next.js route prefetches (triggered on link hover) so the spinner never
-// flashes for navigation the user hasn't committed to.
-function isPrefetch(init?: RequestInit): boolean {
+function hasHeader(init: RequestInit | undefined, name: string): boolean {
   const headers = init?.headers
   if (!headers) return false
-  if (headers instanceof Headers) return headers.has("Next-Router-Prefetch")
-  if (Array.isArray(headers)) return headers.some(([k]) => k.toLowerCase() === "next-router-prefetch")
-  return Object.keys(headers).some((k) => k.toLowerCase() === "next-router-prefetch")
+  const lower = name.toLowerCase()
+  if (headers instanceof Headers) return headers.has(name)
+  if (Array.isArray(headers)) return headers.some(([k]) => k.toLowerCase() === lower)
+  return Object.keys(headers).some((k) => k.toLowerCase() === lower)
+}
+
+// The spinner is for mutations (Server Actions) and plain /api calls. RSC page
+// navigations carry an "RSC" header and are already covered by route-level
+// skeleton loaders (loading.tsx) — showing the spinner on top of a skeleton is
+// double feedback. Server Actions use "Next-Action" (no RSC nav header), and
+// prefetches (link hover, "Next-Router-Prefetch") shouldn't show feedback at all.
+function shouldSkip(init?: RequestInit): boolean {
+  if (hasHeader(init, "Next-Router-Prefetch")) return true
+  if (hasHeader(init, "RSC") && !hasHeader(init, "Next-Action")) return true
+  return false
 }
 
 function installInterceptor() {
@@ -55,7 +65,7 @@ function installInterceptor() {
 
   const originalFetch = window.fetch.bind(window)
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    if (isPrefetch(init)) return originalFetch(input, init)
+    if (shouldSkip(init)) return originalFetch(input, init)
     start()
     return originalFetch(input, init).then(
       (response) => {
