@@ -8,7 +8,7 @@ import SubmitPaymentDialog from "./SubmitPaymentDialog"
 import VerifyPaymentActions from "./VerifyPaymentActions"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatISODate } from "@/lib/format"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Clock } from "lucide-react"
 
 interface Contribution {
   id: string
@@ -78,6 +78,7 @@ export default function ContributionTable({
         const isExpanded = expandedId === c.id
         const pending = pendingPayments[c.id]
         const isOwnContribution = c.userId === currentUserId
+        const isFullyPaid = c.status === "paid" || c.status === "overpaid"
 
         return (
           <div
@@ -136,7 +137,18 @@ export default function ContributionTable({
                     onOptimisticUpdate={onOptimisticUpdate}
                   />
                 )}
-                {isOwnContribution && !pending && (
+                {/* Member's own row: a clear CTA to record their payment, a
+                    read-only pending indicator while awaiting admin verification,
+                    or nothing once fully paid (the status badge says it all). */}
+                {!canEdit && isOwnContribution && pending && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                      {formatCurrency(pending.amount)} pending
+                    </span>
+                  </div>
+                )}
+                {!canEdit && isOwnContribution && !pending && !isFullyPaid && (
                   <SubmitPaymentDialog
                     contributionId={c.id}
                     circleId={circleId}

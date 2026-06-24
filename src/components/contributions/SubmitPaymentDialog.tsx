@@ -77,10 +77,9 @@ export default function SubmitPaymentDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="I've paid">
-          <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-[var(--border-color)] text-[var(--text-muted)] hover:border-teal hover:bg-teal-50 hover:text-teal transition-colors">
-            <Check className="h-3 w-3" />
-          </div>
+        <Button size="sm" className="h-8 gap-1.5 px-3">
+          <Check className="h-3.5 w-3.5" />
+          Mark as paid
         </Button>
       </DialogTrigger>
       <DialogContent>

@@ -2,6 +2,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase-server"
 import { getCurrentUser } from "@/lib/get-current-user"
 import { redirect } from "next/navigation"
 import { isAdminOrOwner } from "@/lib/permissions"
+import { resolveEffectiveRole, getViewPreference } from "@/lib/view-mode"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,7 +35,10 @@ export default async function CycleDetailPage({
 
   if (!membership) redirect("/circles")
 
-  const role = membership.role
+  // Admins may preview the member experience via the view toggle; honor that here
+  // so admin-only controls (edit/verify payments, close cycle) hide in member view.
+  // RLS + server-side re-checks remain the real access boundary.
+  const role = resolveEffectiveRole(membership.role, await getViewPreference(circleId))
   const canEdit = isAdminOrOwner(role)
 
   const [{ data: cycle }, { data: circleMeta }] = await Promise.all([
