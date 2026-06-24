@@ -57,7 +57,38 @@ function installInterceptor() {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     if (isPrefetch(init)) return originalFetch(input, init)
     start()
-    return originalFetch(input, init).finally(end)
+    return originalFetch(input, init).then(
+      (response) => {
+        // fetch() resolves when response *headers* arrive, but RSC navigations
+        // and Server Actions stream their rendered data after that — so ending
+        // here would hide the spinner while the page is still loading. Instead,
+        // drain a clone to keep the count active until the body fully streams
+        // in. The original response is returned untouched so Next's router still
+        // sees redirected/url/status correctly.
+        try {
+          const body = response.clone().body
+          if (!body) {
+            end()
+            return response
+          }
+          const reader = body.getReader()
+          const drain = (): void => {
+            reader
+              .read()
+              .then(({ done }) => (done ? end() : drain()))
+              .catch(end)
+          }
+          drain()
+        } catch {
+          end()
+        }
+        return response
+      },
+      (err) => {
+        end()
+        throw err
+      },
+    )
   }
 }
 

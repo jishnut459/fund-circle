@@ -142,7 +142,9 @@ export default async function CircleDashboardPage({
     .map((c) => {
       const cycle = c.contribution_cycles as unknown as { label: string; due_date: string | null; cycle_start: string; fund_circle_id: string }
       return {
-        id: c.id,
+        // Navigation + React key must use the cycle id, not the contribution id —
+        // the cycle detail page looks up contribution_cycles by this value.
+        id: c.contribution_cycle_id,
         label: cycle.label,
         circleId: cycle.fund_circle_id,
         circleName: "",
