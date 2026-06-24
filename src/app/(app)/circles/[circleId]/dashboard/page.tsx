@@ -97,7 +97,7 @@ export default async function CircleDashboardPage({
       .from("contribution_cycles")
       .select("id, label, status, contributions(paid_amount, expected_amount)")
       .eq("fund_circle_id", circleId)
-      .order("created_at", { ascending: false })
+      .order("cycle_start", { ascending: false })
       .limit(6)
 
     const recentCycles = (allCycles ?? []).map((c) => {
@@ -135,7 +135,7 @@ export default async function CircleDashboardPage({
     .select("id, contribution_cycle_id, expected_amount, paid_amount, status, contribution_cycles!inner(label, due_date, fund_circle_id)")
     .eq("user_id", user.id)
     .eq("contribution_cycles.fund_circle_id", circleId)
-    .order("created_at", { foreignTable: "contribution_cycles", ascending: false })
+    .order("cycle_start", { foreignTable: "contribution_cycles", ascending: false })
 
   const cycles = (myContributions ?? []).map((c) => {
     const cycle = c.contribution_cycles as unknown as { label: string; due_date: string | null; fund_circle_id: string }
