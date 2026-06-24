@@ -44,6 +44,8 @@ export default function SubmitPaymentDialog({
 
   const totalDue = expectedAmount + lateFee
   const remaining = totalDue - currentPaid
+  const exceedsRemaining = amount !== "" && Number(amount) > remaining
+  const remainingExceededMessage = `Amount can't exceed the ${formatCurrency(remaining)} remaining.`
 
   const handleOpenChange = (value: boolean) => {
     setOpen(value)
@@ -56,7 +58,7 @@ export default function SubmitPaymentDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!amount || Number(amount) <= 0) return
+    if (!amount || Number(amount) <= 0 || exceedsRemaining) return
     setLoading(true)
     setError("")
     startTransition(() =>
@@ -121,6 +123,7 @@ export default function SubmitPaymentDialog({
             <Input id="sp-amount" type="number" step="0.01" min="0" value={amount}
               onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.select()}
               placeholder="500" disabled={loading} autoFocus />
+            {exceedsRemaining && <p className="text-sm text-red-600">{remainingExceededMessage}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="sp-notes">Payment reference (optional)</Label>
@@ -128,7 +131,7 @@ export default function SubmitPaymentDialog({
               placeholder="UPI ref: 123456789" disabled={loading} />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={loading || !amount || Number(amount) <= 0} className="w-full">
+          <Button type="submit" disabled={loading || !amount || Number(amount) <= 0 || exceedsRemaining} className="w-full">
             {loading ? "Submitting..." : "Submit for Verification"}
           </Button>
         </form>
