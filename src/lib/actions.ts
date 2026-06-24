@@ -529,17 +529,21 @@ export async function submitContributionPayment(
   const supabase = createAdminSupabaseClient()
   const { data: contrib } = await supabase
     .from("contributions")
-    .select("user_id, paid_amount, contribution_cycle_id")
+    .select("user_id, paid_amount, expected_amount, late_fee, contribution_cycle_id")
     .eq("id", contributionId)
     .single()
   if (!contrib) return { success: false, error: "Contribution not found" }
   if (contrib.user_id !== userId) return { success: false, error: "You can only submit payments for your own contributions." }
   const { data: cycle } = await supabase
     .from("contribution_cycles")
-    .select("fund_circle_id")
+    .select("fund_circle_id, due_date")
     .eq("id", contrib.contribution_cycle_id)
     .single()
   if (!cycle || cycle.fund_circle_id !== circleId) return { success: false, error: "Contribution not found" }
+  const lateFee = await resolveContributionLateFee(supabase, circleId, cycle.due_date, Number(contrib.late_fee))
+  const remaining = roundCurrency(Number(contrib.expected_amount) + lateFee - Number(contrib.paid_amount))
+  if (amount > remaining)
+    return { success: false, error: `This amount exceeds the ${formatCurrency(remaining)} remaining for this contribution.` }
   // Closed cycles still accept payments so members can settle previous cycles late.
   const { data: existing } = await supabase
     .from("contribution_payments")
