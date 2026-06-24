@@ -83,25 +83,27 @@ export default function UserDropdown({
           compact ? "p-1.5" : "w-full px-3 py-2"
         )}
       >
-        {showViewBadge && (
-          <span
-            title={previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none",
-              previewingAsMember
-                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                : "bg-teal-50 text-teal dark:bg-teal-900/20 dark:text-teal-300"
-            )}
-          >
-            {previewingAsMember ? "Member" : "Admin"}
-          </span>
-        )}
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
-          <AvatarFallback className="bg-teal text-white font-medium">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
+            <AvatarFallback className="bg-teal text-white font-medium">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          {showViewBadge && (
+            <span
+              title={previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
+              className={cn(
+                "rounded-full px-1.5 py-px text-[9px] font-medium leading-none",
+                previewingAsMember
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                  : "bg-teal-50 text-teal dark:bg-teal-900/20 dark:text-teal-300"
+              )}
+            >
+              {previewingAsMember ? "Member" : "Admin"}
+            </span>
+          )}
+        </div>
         {!compact && (
           <div className="min-w-0 flex-1 text-left">
             <p className="text-xs font-medium text-[var(--text-primary)] truncate">

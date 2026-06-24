@@ -132,24 +132,28 @@ export default async function CircleDashboardPage({
 
   const { data: myContributions } = await supabase
     .from("contributions_with_status")
-    .select("id, contribution_cycle_id, expected_amount, paid_amount, status, contribution_cycles!inner(label, due_date, fund_circle_id)")
+    .select("id, contribution_cycle_id, expected_amount, paid_amount, status, contribution_cycles!inner(label, due_date, cycle_start, fund_circle_id)")
     .eq("user_id", user.id)
     .eq("contribution_cycles.fund_circle_id", circleId)
-    .order("cycle_start", { foreignTable: "contribution_cycles", ascending: false })
 
-  const cycles = (myContributions ?? []).map((c) => {
-    const cycle = c.contribution_cycles as unknown as { label: string; due_date: string | null; fund_circle_id: string }
-    return {
-      id: c.id,
-      label: cycle.label,
-      circleId: cycle.fund_circle_id,
-      circleName: "",
-      dueDate: cycle.due_date,
-      expectedAmount: Number(c.expected_amount),
-      paidAmount: Number(c.paid_amount),
-      status: c.status,
-    }
-  })
+  // PostgREST can't order parent rows by an embedded table's column, so sort
+  // here: latest cycle first (newest on top, and currentCycle = cycles[0]).
+  const cycles = (myContributions ?? [])
+    .map((c) => {
+      const cycle = c.contribution_cycles as unknown as { label: string; due_date: string | null; cycle_start: string; fund_circle_id: string }
+      return {
+        id: c.id,
+        label: cycle.label,
+        circleId: cycle.fund_circle_id,
+        circleName: "",
+        dueDate: cycle.due_date,
+        cycleStart: cycle.cycle_start,
+        expectedAmount: Number(c.expected_amount),
+        paidAmount: Number(c.paid_amount),
+        status: c.status,
+      }
+    })
+    .sort((a, b) => (a.cycleStart < b.cycleStart ? 1 : a.cycleStart > b.cycleStart ? -1 : 0))
 
   const totalPaid = cycles.reduce((s, c) => s + c.paidAmount, 0)
   const totalExpected = cycles.reduce((s, c) => s + c.expectedAmount, 0)
