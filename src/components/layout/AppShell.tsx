@@ -313,34 +313,61 @@ function MobileHeader({
   )
 }
 
-function PreviewBanner({ viewMode }: { viewMode: "admin" | "member" }) {
+function ViewModeBanner({
+  canSwitchView,
+  viewMode,
+}: {
+  canSwitchView: boolean
+  viewMode: "admin" | "member"
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const circleId = pathname.split("/")[2] ?? ""
 
-  if (viewMode !== "member" || !circleId) return null
+  // Only meaningful for admins/owners, who can toggle the view. Real members
+  // always have viewMode forced to "admin" server-side, so this never shows for them.
+  if (!canSwitchView || !circleId) return null
 
-  const exitPreview = () => {
+  const previewingAsMember = viewMode === "member"
+
+  const toggleView = () => {
     if (pending) return
     startTransition(async () => {
-      await setCircleViewMode(circleId, "admin")
+      await setCircleViewMode(circleId, previewingAsMember ? "admin" : "member")
       router.refresh()
     })
   }
 
   return (
-    <div className="shrink-0 flex items-center justify-between gap-3 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/50 px-4 py-2">
-      <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300 min-w-0">
+    <div
+      className={cn(
+        "shrink-0 flex items-center justify-between gap-3 border-b px-4 py-2",
+        previewingAsMember
+          ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50"
+          : "bg-teal-50 dark:bg-teal-900/20 border-teal-100 dark:border-teal-800/40"
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-2 text-sm font-medium min-w-0",
+          previewingAsMember ? "text-amber-800 dark:text-amber-300" : "text-teal dark:text-teal-400"
+        )}
+      >
         <Eye className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="font-medium truncate">Previewing as a member</span>
+        <span className="truncate">
+          {previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
+        </span>
       </div>
       <button
-        onClick={exitPreview}
+        onClick={toggleView}
         disabled={pending}
-        className="text-sm font-medium text-amber-800 dark:text-amber-300 hover:underline underline-offset-2 disabled:opacity-60 shrink-0"
+        className={cn(
+          "text-sm font-medium shrink-0 hover:underline underline-offset-2 disabled:opacity-60",
+          previewingAsMember ? "text-amber-800 dark:text-amber-300" : "text-teal dark:text-teal-400"
+        )}
       >
-        Exit preview
+        {previewingAsMember ? "Switch to admin view" : "Preview as member"}
       </button>
     </div>
   )
@@ -374,7 +401,7 @@ export default function AppShell({
           canSwitchView={canSwitchView}
           viewMode={viewMode}
         />
-        <PreviewBanner viewMode={viewMode} />
+        <ViewModeBanner canSwitchView={canSwitchView} viewMode={viewMode} />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
           <div className="p-4 md:p-6 lg:p-8">{children}</div>
         </main>
