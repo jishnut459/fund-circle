@@ -249,7 +249,7 @@ create table circle_settlement_payouts (
 create table audit_logs (
   id uuid primary key default gen_random_uuid(),
   circle_id uuid references fund_circles(id) on delete set null,
-  user_id uuid not null references auth.users(id),
+  user_id uuid not null references profiles(id),
   action text not null,
   entity_type text not null,
   entity_id uuid,
