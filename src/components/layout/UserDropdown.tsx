@@ -83,7 +83,7 @@ export default function UserDropdown({
           compact ? "p-1.5" : "w-full px-3 py-2"
         )}
       >
-        <div className="flex flex-col items-center gap-0.5 shrink-0">
+        <div className="relative shrink-0">
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
             <AvatarFallback className="bg-teal text-white font-medium">
@@ -92,16 +92,13 @@ export default function UserDropdown({
           </Avatar>
           {showViewBadge && (
             <span
+              aria-label={previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
               title={previewingAsMember ? "Previewing as a member" : "Viewing as admin"}
               className={cn(
-                "rounded-full px-1.5 py-px text-[9px] font-medium leading-none",
-                previewingAsMember
-                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                  : "bg-teal-50 text-teal dark:bg-teal-900/20 dark:text-teal-300"
+                "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--bg-surface)]",
+                previewingAsMember ? "bg-amber-500" : "bg-teal"
               )}
-            >
-              {previewingAsMember ? "Member" : "Admin"}
-            </span>
+            />
           )}
         </div>
         {!compact && (
